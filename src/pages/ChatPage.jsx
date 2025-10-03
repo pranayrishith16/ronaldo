@@ -112,7 +112,7 @@ export default function ChatPage() {
 
     try {
       // Stream response
-      const response = await fetch("http://localhost:8000/query/stream", {
+      const response = await fetch("http://34.232.245.70:8000/query/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: text, threadId: currentThreadId }),
