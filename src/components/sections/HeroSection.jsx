@@ -1,87 +1,110 @@
+// src/components/HeroSection.jsx
 // npm i motion
 import React from "react";
-import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
+import { Button } from "@/components/ui/button";
 
 export default function HeroSection() {
   return (
-    <section
-      className="relative flex items-center justify-center bg-[#171717] px-6"
-      style={{ minHeight: "calc(100vh - 4rem)" }}
-    >
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(1000px_600px_at_50%_-200px,rgba(0,0,0,0.03),transparent)]" />
+    <section className="relative isolate overflow-hidden min-h-screen flex items-center">
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 -z-10 animate-gradient-slow" />
 
-      <motion.div
-        className="mx-auto max-w-5xl text-center space-y-6"
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: {},
-          visible: { transition: { staggerChildren: 0.08 } },
+      {/* Spacer for fixed glass header height */}
+      <div
+        aria-hidden
+        className="pointer-events-none h-16 w-full absolute top-0"
+      />
+
+      {/* Depth overlays to keep it moody and legible */}
+      <div className="absolute inset-0 -z-10 bg-black/30" />
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.05] mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "radial-gradient(1px 1px at 10% 20%, #ffffff 20%, transparent 20%), radial-gradient(1px 1px at 80% 30%, #ffffff 20%, transparent 20%), radial-gradient(1px 1px at 30% 80%, #ffffff 20%, transparent 20%)",
+          backgroundSize: "120px 120px, 160px 160px, 200px 200px",
         }}
-      >
-        <motion.span
-          variants={{
-            hidden: { opacity: 0, y: 8 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
-          }}
-          className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/60 px-3 py-1 text-[11px] font-medium tracking-wide text-neutral-700"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Launching Beta v0.1 Soon
-        </motion.span>
+      />
 
-        <motion.h1
-          className="font-serif text-5xl sm:text-6xl md:text-7xl leading-tight text-neutral-100"
-          variants={{
-            hidden: { opacity: 0, y: 10 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } },
-          }}
-        >
-          Collaborative AI <br /> for Legal Teams
-        </motion.h1>
+      {/* Subtle, cool glows */}
+      <div className="absolute -top-24 right-1/4 -z-10 h-80 w-80 rounded-full bg-sky-400/15 blur-3xl" />
+      <div className="absolute -bottom-24 left-1/4 -z-10 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
 
-        <motion.p
-          className="text-xs uppercase tracking-[0.25em] text-neutral-400"
-          variants={{
-            hidden: { opacity: 0, y: 8 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
-          }}
-        >
-          Review faster. Research deeper. Draft with confidence
-        </motion.p>
+      <div className="relative mx-auto w-full max-w-7xl px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <motion.span
+            initial={{ opacity: 0, y: 6 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.6 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="inline-block rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-white/75 backdrop-blur-sm"
+          >
+            Launching Beta v0.1 Soon
+          </motion.span>
 
-        <motion.p
-          className="max-w-3xl text-[17px] leading-7 text-neutral-400 mx-auto"
-          variants={{
-            hidden: { opacity: 0, y: 8 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
-          }}
-        >
-          Seamlessly collaborate with an AI assistant tuned to your firm’s playbooks, surfacing precedent and statutes in context so you can focus on strategy—not sifting through documents.
-        </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.6 }}
+            transition={{ duration: 0.6, delay: 0.05, ease: "easeOut" }}
+            className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-6xl"
+          >
+            Collaborative AI for Legal Teams
+          </motion.h1>
 
-        <motion.div
-          className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4"
-          variants={{
-            hidden: { opacity: 0, y: 8 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
-          }}
-        >
-          <Button className="rounded-full bg-neutral-900 px-6 py-3 text-white hover:bg-neutral-800 focus-visible:ring-2 focus-visible:ring-blue-600">
-            Schedule a Consultation
-          </Button>
-          <Link to="/chat">
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.6 }}
+            transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
+            className="mt-4 text-base leading-7 text-white/85 sm:text-lg"
+          >
+            Review faster. Research deeper. Draft with confidence. Seamlessly
+            collaborate with an AI assistant tuned to your firm’s playbooks,
+            surfacing precedent and statutes in context so you can focus on
+            strategy—not sifting through documents.
+          </motion.p>
+
+          <div className="mt-8 flex items-center justify-center gap-4">
             <Button
-              variant="outline"
-              className="rounded-full border border-neutral-300 bg-white px-6 py-3 text-neutral-900 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-blue-600 cursor-pointer"
+              asChild
+              className="rounded-full bg-white text-[#002e60] hover:bg-white/90"
+            >
+              <Link to="/consultation">Schedule a Consultation</Link>
+            </Button>
+            <Link
+              to="/platform"
+              className="text-sm font-medium text-white/90 hover:text-white underline-offset-4 hover:underline"
             >
               Explore Platform →
-            </Button>
-          </Link>
-        </motion.div>
-      </motion.div>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Component-scoped CSS for gradient animation */}
+      <style>{`
+        .animate-gradient-slow {
+          background: linear-gradient(135deg, #000428 0%, #002e60 50%, #004e92 100%);
+          background-size: 220% 220%;
+          animation: heroGradientPan 10s ease-in-out infinite; /* was 18s */
+        }
+        @keyframes heroGradientPan {
+          0% { background-position: 0% 50%; }
+          25% { background-position: 50% 0%; }
+          50% { background-position: 100% 50%; }
+          75% { background-position: 50% 100%; }
+          100% { background-position: 0% 50%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-gradient-slow {
+            animation: none;
+            background-position: 50% 50%;
+          }
+        }
+      `}</style>
     </section>
   );
 }

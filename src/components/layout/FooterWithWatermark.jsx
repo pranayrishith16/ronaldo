@@ -4,18 +4,23 @@ import Footer from "./Footer";
 
 export default function FooterWithWatermark() {
   return (
-    <>
-      <Footer />
-
-      {/* Large straight watermark strip */}
-      <div className="relative bg-neutral-900 overflow-hidden h-64">
+    <div className="relative">
+      {/* Watermark behind the footer */}
+      <div
+        className="absolute inset-0 -z-20 flex items-center justify-center"
+        style={{ opacity: 0.1 }}
+        aria-hidden
+      >
         <span
-          className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2
-                     whitespace-nowrap text-[20rem] font-bold text-white/5 leading-none select-none"
+          className="w-full text-center text-[18rem] font-extrabold leading-none select-none
+                     text-transparent [text-stroke:2px_rgba(255,255,255,0.15)]"
         >
           VERITLY AI
         </span>
       </div>
-    </>
+
+      {/* The actual footer */}
+      <Footer />
+    </div>
   );
 }
