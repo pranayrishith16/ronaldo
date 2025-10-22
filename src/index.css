@@ -5,6 +5,7 @@
 /* Global resets */
 * {
   box-sizing: border-box;
+  image-rendering: auto;
 }
 
 html {

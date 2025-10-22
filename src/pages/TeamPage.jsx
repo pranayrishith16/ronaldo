@@ -2,31 +2,43 @@
 import React, { useEffect, useRef } from "react";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
+import Bunty from "../assets/bunty.jpeg";
+import Teja from "../assets/teja.jpeg";
+import Sudheer from "../assets/sudheer.jpg";
+import Rishi from "../assets/rishi.jpeg";
 
 const teamMembers = [
   {
     id: 1,
-    name: "Michael Scott",
+    name: "Pranay Rishith Bondugula",
     designation: "Co-Founder, Chief Architect",
-    image: "https://randomuser.me/api/portraits/men/32.jpg",
+    image: Rishi,
+    scale: 1.15,
+    objectPosition: "center 90%",
   },
   {
     id: 2,
-    name: "Chandler Rigs",
+    name: "Sudheer Vindula",
     designation: "Co-Founder, Architect",
-    image: "https://randomuser.me/api/portraits/men/33.jpg",
+    image: Sudheer,
+    scale: 1.1,
+    objectPosition: "center 25%",
   },
   {
     id: 3,
-    name: "Isabella Rodriguez",
+    name: "Puneet Puttu",
     designation: "Architect",
-    image: "https://randomuser.me/api/portraits/women/44.jpg",
+    image: Bunty,
+    scale: 1.2,
+    objectPosition: "center 20%",
   },
   {
     id: 4,
-    name: "Ava Wilson",
+    name: "Tejamanikanta Gudla",
     designation: "3D Artist",
-    image: "https://randomuser.me/api/portraits/women/45.jpg",
+    image: Teja,
+    scale: 1.12,
+    objectPosition: "center 28%",
   },
 ];
 
@@ -51,11 +63,20 @@ function TeamCard({ member }) {
       ref={ref}
       className="flex flex-col items-center text-center transition-opacity transition-transform duration-700 ease-out opacity-0 translate-y-8"
     >
-      <div className="w-full relative" style={{ paddingBottom: "177.78%" }}>
+      <div
+        className="w-full relative overflow-hidden rounded-lg"
+        style={{ paddingBottom: "177.78%" }}
+      >
         <img
           src={member.image}
           alt={member.name}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out hover:scale-105"
+          className="absolute inset-0 w-full h-full transition-transform duration-500 ease-out hover:scale-110"
+          style={{
+            objectFit: "cover",
+            objectPosition: member.objectPosition,
+            transform: `scale(${member.scale})`,
+            transformOrigin: member.objectPosition,
+          }}
         />
       </div>
       <h3 className="mt-4 text-lg font-semibold text-white">{member.name}</h3>
@@ -78,18 +99,14 @@ export default function TeamPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="text-center py-12 px-4 w-full max-w-4xl"
+          className="text-center py-6 px-4 w-full max-w-4xl"
         >
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
             Our Team
           </h1>
-          <p className="text-gray-300 text-base sm:text-lg">
-            We craft solutions that amplify key characteristics, achieving a
-            harmonious balance of function and intent.
-          </p>
         </motion.section>
 
-        <section className="w-[90vw] max-w-[1200px] grid grid-cols-4 gap-8 pb-12">
+        <section className="w-[90vw] max-w-[1200px] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 pb-12">
           {teamMembers.map((m) => (
             <TeamCard key={m.id} member={m} />
           ))}
