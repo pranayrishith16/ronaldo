@@ -1,6 +1,9 @@
 // src/components/layout/Header.jsx
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { logoutUser } from "../../store/slices/authSlice";
 import { Menu, X } from "lucide-react";
 
 const navItems = [
@@ -12,11 +15,21 @@ const navItems = [
 
 export default function Header() {
   const loc = useLocation().pathname;
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
   const [openIndex, setOpenIndex] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const { isLoggedIn, user } = useSelector((state) => state.auth);
+
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const handleLogout = async () => {
+    await dispatch(logoutUser());
+    navigate("/");
   };
 
   return (
@@ -96,10 +109,10 @@ export default function Header() {
             Login
           </Link>
           <Link
-            to="/demo"
+            to="/signup"
             className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition duration-200 shadow-lg hover:shadow-blue-500/50"
           >
-            Request Demo
+            Try it for Free
           </Link>
         </div>
 

@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { loginUser, clearError } from "../../store/slices/authSlice";
 import { Github, Mail } from "lucide-react";
 
 export default function RightPanel() {
@@ -6,9 +9,26 @@ export default function RightPanel() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
-  const handleSubmit = (e) => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { isLoading, error } = useSelector((state) => state.auth);
+
+  useEffect(() => {
+    return () => {
+      dispatch(clearError());
+    };
+  }, [dispatch]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle login logic
+    try {
+      await dispatch(loginUser({ email, password })).unwrap();
+      // Login successful, navigate to chat
+      navigate('/chat');
+    } catch (err) {
+      // Error is already in Redux state, will display below
+      console.error('Login failed:', err);
+    }
   };
 
   const handleSocialLogin = (provider) => {
