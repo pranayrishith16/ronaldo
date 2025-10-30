@@ -82,8 +82,8 @@ export const logoutUser = createAsyncThunk(
 
 const initialState = {
     user:null,
-    accessToken:null,
-    isLoggedIn:false,
+    accessToken:localStorage.getItem('accessToken') || null,
+    isLoggedIn: !!localStorage.getItem('accessToken'),
     isLoading:false,
     isAuthChecked:false,
     error:null
@@ -104,11 +104,17 @@ const authSlice = createSlice({
         },
 
         logout: (state) => {
-            state.user = null;
-            state.accessToken = null;
-            state.isLoggedIn = false;
-            state.error = null;
-          },
+          state.user = null;
+          state.accessToken = null;
+          state.isLoggedIn = false;
+          state.error = null;
+          
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('userTier');
+        },
         
         clearError: (state) => {
         state.error = null;
@@ -123,8 +129,19 @@ const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.accessToken = action.payload.accessToken;
-        state.user = action.payload.user;
+        state.accessToken = action.payload.access_token;
+        
+        localStorage.setItem('accessToken', action.payload.access_token);
+        localStorage.setItem('refreshToken', action.payload.refresh_token);
+        localStorage.setItem('userId', action.payload.user_id);
+        localStorage.setItem('userEmail', action.payload.email);
+        localStorage.setItem('userTier', action.payload.tier);
+        
+        state.user = {
+          user_id: action.payload.user_id,
+          email: action.payload.email,
+          tier: action.payload.tier
+        };
         state.isLoggedIn = true;
         state.isAuthChecked = true;
         state.error = null;
