@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { checkAuth } from "./store/slices/authSlice";
@@ -13,19 +13,13 @@ import PricingPage from "./pages/PricingPage";
 import ContactUs from "./pages/ContactUs";
 import RoadmapPage from "./pages/Roadmap";
 import SignupPage from "./pages/SignupPage";
+import LoadingScreen from "./components/layout/LoadingScreen";
 
 function ProtectedRoute({ children }) {
   const { isLoggedIn, isAuthChecked } = useSelector((state) => state.auth);
 
   if (!isAuthChecked) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-          <p className="text-white mt-4">Verifying authentication...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen onComplete={() => {}} />;
   }
 
   if (!isLoggedIn) {
@@ -35,23 +29,24 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+
 export default function App() {
   const dispatch = useDispatch();
   const { isLoggedIn, isAuthChecked } = useSelector((state) => state.auth);
+  const [showLoading, setShowLoading] = useState(true);
 
   useEffect(() => {
+    console.log("[APP] App mounted, checking auth...");
     dispatch(checkAuth());
   }, [dispatch]);
 
-  if (!isAuthChecked) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-          <p className="text-white mt-4">Loading...</p>
-        </div>
-      </div>
-    );
+  const handleLoadingComplete = () => {
+    console.log("[APP] Loading animation complete");
+    setShowLoading(false);
+  };
+
+  if (showLoading || !isAuthChecked) {
+    return <LoadingScreen onComplete={handleLoadingComplete} />;
   }
 
   return (

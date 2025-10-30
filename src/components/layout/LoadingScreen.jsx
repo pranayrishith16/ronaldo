@@ -1,100 +1,127 @@
-import React, { useState, useEffect } from "react";
-import { motion, useSpring } from "framer-motion";
+import React, { useEffect } from "react";
+import { motion } from "framer-motion";
 
-export default function LoadingScreen({ onComplete }) {
-  const [progress, setProgress] = useState(0);
-
-  // Use Framer Motion spring for smooth number animation
-  const animatedProgress = useSpring(0, {
-    stiffness: 50,
-    damping: 30,
-    restDelta: 0.001,
-  });
-
+const LoadingScreen = ({ onComplete }) => {
   useEffect(() => {
-    // Define loading stages with bigger jumps (like 0 → 40 → 77 → 100)
-    const stages = [0, 35, 68, 85, 100];
-    let currentStageIndex = 0;
-
-    const interval = setInterval(() => {
-      if (currentStageIndex < stages.length) {
-        setProgress(stages[currentStageIndex]);
-        currentStageIndex++;
+    const timer = setTimeout(() => {
+      if (onComplete) {
+        onComplete();
       }
+    }, 1400);
 
-      if (currentStageIndex >= stages.length) {
-        clearInterval(interval);
-        // Small delay before fading out
-        setTimeout(() => {
-          onComplete?.();
-        }, 400);
-      }
-    }, 600); // 600ms between each jump (slower, more dramatic)
-
-    return () => clearInterval(interval);
+    return () => clearTimeout(timer);
   }, [onComplete]);
 
-  // Update animated value when progress changes
-  useEffect(() => {
-    animatedProgress.set(progress);
-  }, [progress, animatedProgress]);
+  const eritlyLetters = "ERITLY".split("");
+  const aiLetters = "AI".split("");
 
-  // Circle properties
-  const radius = 120;
-  const circumference = 2 * Math.PI * radius;
+  // V letter animation - smooth drop from top
+  const vVariants = {
+    hidden: { y: -300, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.5,
+        ease: "easeOut",
+      },
+    },
+  };
+
+  // Letter animation - smooth slide (no overflow needed)
+  const letterVariants = {
+    hidden: { x: -20, opacity: 0 },
+    visible: (i) => ({
+      x: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.4,
+        ease: "easeOut",
+        delay: 0.5 + i * 0.06,
+      },
+    }),
+  };
+
+  // AI letter animation
+  const aiLetterVariants = {
+    hidden: { x: -20, opacity: 0 },
+    visible: (i) => ({
+      x: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.4,
+        ease: "easeOut",
+        delay: 0.85 + i * 0.06,
+      },
+    }),
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950">
-      {/* Main loading container - centered */}
-      <div className="relative flex items-center justify-center">
-        {/* Circular progress */}
-        <div className="relative w-80 h-80">
-          {/* Background circle */}
-          <svg className="w-full h-full transform -rotate-90">
-            <circle
-              cx="160"
-              cy="160"
-              r={radius}
-              stroke="rgba(255, 255, 255, 0.1)"
-              strokeWidth="2"
-              fill="none"
-            />
-            {/* Progress circle - single color (white) */}
-            <motion.circle
-              cx="160"
-              cy="160"
-              r={radius}
-              stroke="rgba(255, 255, 255, 0.8)"
-              strokeWidth="3"
-              fill="none"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              initial={{ strokeDashoffset: circumference }}
-              animate={{
-                strokeDashoffset:
-                  circumference - (progress / 100) * circumference,
-              }}
-              transition={{
-                duration: 0.8,
-                ease: "easeInOut",
-              }}
-            />
-          </svg>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
+      {/* Container */}
+      <div className="flex items-center gap-6">
+        {/* VERITLY */}
+        <div className="flex items-center">
+          {/* V Letter */}
+          <motion.span
+            className="font-bold text-white whitespace-nowrap"
+            style={{
+              fontSize: "5rem",
+              letterSpacing: "-0.05em",
+              lineHeight: 1,
+            }}
+            variants={vVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            V
+          </motion.span>
 
-          {/* Percentage in center - animated */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <motion.div
-              className="text-8xl font-bold text-white tabular-nums"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              {/* Smooth number transition */}
-              <motion.span>{animatedProgress.get().toFixed(0)}</motion.span>
-            </motion.div>
+          {/* ERITLY - No overflow hidden wrapper */}
+          <div className="flex items-center">
+            {eritlyLetters.map((letter, i) => (
+              <motion.span
+                key={i}
+                className="font-bold text-white whitespace-nowrap"
+                style={{
+                  fontSize: "5rem",
+                  letterSpacing: "-0.05em",
+                  lineHeight: 1,
+                }}
+                custom={i}
+                variants={letterVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                {letter}
+              </motion.span>
+            ))}
           </div>
+        </div>
+
+        {/* AI - No overflow hidden wrapper */}
+        <div className="flex items-center">
+          {aiLetters.map((letter, i) => (
+            <motion.span
+              key={i}
+              className="font-bold text-white whitespace-nowrap"
+              style={{
+                fontSize: "5rem",
+                letterSpacing: "-0.05em",
+                lineHeight: 1,
+              }}
+              custom={i}
+              variants={aiLetterVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              {letter}
+            </motion.span>
+          ))}
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default LoadingScreen;
