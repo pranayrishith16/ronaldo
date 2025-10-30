@@ -1,23 +1,23 @@
 // src/App.jsx
-import React, {useEffect} from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import {checkAuth} from './store/slices/authSlice'
+import { checkAuth } from "./store/slices/authSlice";
 
 import HomePage from "@/pages/HomePage";
 import LoginPage from "@/pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
-import Placeholder from './pages/Placeholder'
+import Placeholder from "./pages/Placeholder";
 import TeamPage from "./pages/TeamPage";
 import PricingPage from "./pages/PricingPage";
 import ContactUs from "./pages/ContactUs";
 import RoadmapPage from "./pages/Roadmap";
-import SignupPage from './pages/SignupPage';
+import SignupPage from "./pages/SignupPage";
 
-function ProtectedRoute({children}) {
-  const {isLoggedIn, isAuthChecked} = useSelector((state) => state.auth)
+function ProtectedRoute({ children }) {
+  const { isLoggedIn, isAuthChecked } = useSelector((state) => state.auth);
 
-  if(!isAuthChecked){
+  if (!isAuthChecked) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900">
         <div className="text-center">
@@ -28,15 +28,15 @@ function ProtectedRoute({children}) {
     );
   }
 
-  if(!isLoggedIn){
-    return <Navigate to='/login' replace/>
+  if (!isLoggedIn) {
+    return <Navigate to="/login" replace />;
   }
 
   return children;
 }
 
 export default function App() {
-  const dispatch = useDispatch()
+  const dispatch = useDispatch();
   const { isLoggedIn, isAuthChecked } = useSelector((state) => state.auth);
 
   useEffect(() => {

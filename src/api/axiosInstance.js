@@ -2,7 +2,7 @@ import axios from 'axios';
 import { store } from '../store/store';
 import { logout, setAccessToken } from '../store/slices/authSlice';
 
-const API_BASE_URL = 'https://www.api.veritlyai.com'
+const API_BASE_URL = 'https://api.veritlyai.com'
 
 const api = axios.create({
     baseURL:API_BASE_URL,
