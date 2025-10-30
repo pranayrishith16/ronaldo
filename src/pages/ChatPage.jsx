@@ -9,6 +9,7 @@ import { Settings, Plus, Search, Send, Menu, X, Trash2 } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import { nanoid } from "nanoid";
 import ReactMarkdown from "react-markdown";
+import api from '../../api/axiosInstance';
 
 // Memoized Source Card Component
 const SourceCard = React.memo(({ source, index }) => (
@@ -127,12 +128,11 @@ export default function ChatPage() {
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => abortController.abort(), 60000);
 
-      const response = await fetch("https://api.veritlyai.com/query/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: text, threadId: currentThreadId }),
-        signal: abortController.signal,
-      });
+      const response = await api.post(
+        "/query/stream",
+        { query: text, threadId: currentThreadId },
+        { signal: abortController.signal }
+      );
 
       clearTimeout(timeoutId);
 
@@ -250,6 +250,17 @@ export default function ChatPage() {
             }
           }
         }
+        if (buffer.trim() && buffer.startsWith("data: ")) {
+          const dataStr = buffer.slice(6).trim();
+          if (dataStr && dataStr !== "[DONE]") {
+            try {
+              const data = JSON.parse(dataStr);
+              // handle final data
+            } catch (e) {
+              console.warn("Failed to parse final SSE data:", buffer, e);
+            }
+          }
+        }
       }
     } catch (error) {
       console.error("Fetch error:", error);
@@ -261,7 +272,10 @@ export default function ChatPage() {
       setLoadingLabel("");
 
       let errorMessage = "Sorry, there was an error processing your request.";
-      if (error.name === "AbortError") {
+      if (
+        error.name === "AbortError" ||
+        error.message === "The user aborted a request."
+      ) {
         errorMessage = "Request timed out. Please try again.";
       } else if (error.message.includes("Failed to fetch")) {
         errorMessage = "Network error. Please check your connection.";
