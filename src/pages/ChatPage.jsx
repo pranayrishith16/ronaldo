@@ -9,7 +9,7 @@ import { Settings, Plus, Search, Send, Menu, X, Trash2 } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import { nanoid } from "nanoid";
 import ReactMarkdown from "react-markdown";
-import api from '../../api/axiosInstance';
+import api from '../api/axiosInstance';
 
 // Memoized Source Card Component
 const SourceCard = React.memo(({ source, index }) => (
