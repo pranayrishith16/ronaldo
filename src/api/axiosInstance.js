@@ -16,19 +16,26 @@ const api = axios.create({
 let refreshPromise = null;
 
 api.interceptors.request.use(
-    (config) => {
-        const state = store.getState()
-        const accessToken = state.auth.accessToken
-
-        if(accessToken){
-            config.headers.Authorization = `Bearer ${accessToken}`
-        }
-
-        return config
-    },
-    (error) => {
-        return Promise.reject(error)
+  (config) => {
+    const state = store.getState()
+    const accessToken = state.auth.accessToken
+    
+    console.log('[API] Request interceptor:');
+    console.log('[API]   - URL:', config.url);
+    console.log('[API]   - Token in Redux:', accessToken ? '✅ Present' : '❌ Missing');
+    
+    if(accessToken){
+      config.headers.Authorization = `Bearer ${accessToken}`
+      console.log('[API]   - Authorization header added');
+    } else {
+      console.warn('[API]   - NO TOKEN! Request will likely fail');
     }
+    
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
 );
 
 api.interceptors.response.use(
@@ -62,9 +69,10 @@ api.interceptors.response.use(
             refreshPromise = api
               .post('/auth/refresh')
               .then((response) => {
-                const { accessToken } = response.data;
-                store.dispatch(setAccessToken(accessToken));
-                return accessToken;
+                const newToken = response.data.access_token;
+                store.dispatch(setAccessToken(newToken));
+                localStorage.setItem('accessToken', newToken); 
+                return newToken;
               })
               .catch((refreshError) => {
                 // Refresh failed, logout user

@@ -161,11 +161,13 @@ const authSlice = createSlice({
       })
       .addCase(signupUser.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.accessToken = action.payload.accessToken;
-        state.user = action.payload.user;
-        state.isLoggedIn = true;
-        state.isAuthChecked = true;
-        state.error = null;
+        state.accessToken = action.payload.access_token;
+        localStorage.setItem('accessToken', action.payload.access_token);
+        state.user = {
+          user_id: action.payload.user_id,
+          email: action.payload.email,
+          tier: action.payload.tier
+        };      
       })
       .addCase(signupUser.rejected, (state, action) => {
         state.isLoading = false;
@@ -182,7 +184,7 @@ const authSlice = createSlice({
       .addCase(checkAuth.fulfilled, (state, action) => {
         state.isLoading = false;
         state.user = action.payload.user;
-        state.accessToken = action.payload.accessToken;
+        state.accessToken = action.payload.accessToken || action.payload.access_token;
         state.isLoggedIn = true;
         state.isAuthChecked = true;
       })
