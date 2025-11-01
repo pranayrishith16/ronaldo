@@ -10,6 +10,7 @@ import TextareaAutosize from "react-textarea-autosize";
 import { nanoid } from "nanoid";
 import ReactMarkdown from "react-markdown";
 import api from '../api/axiosInstance';
+import { store } from "../store/store";
 
 // Memoized Source Card Component
 const SourceCard = React.memo(({ source, index }) => (
@@ -128,11 +129,21 @@ export default function ChatPage() {
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => abortController.abort(), 60000);
 
-      const response = await api.post(
-        "/query/stream",
-        { query: text, threadId: currentThreadId },
-        { signal: abortController.signal }
-      );
+      const state = store.getState();
+      const accessToken = state.auth.accessToken;
+
+      const response = await fetch("https://api.veritlyai.com/query/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`, // ✅ Manually add token
+        },
+        body: JSON.stringify({
+          query: text,
+          threadId: currentThreadId,
+        }),
+        signal: abortController.signal,
+      });
 
       clearTimeout(timeoutId);
 
