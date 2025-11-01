@@ -16,7 +16,18 @@ import SignupPage from "./pages/SignupPage";
 import LoadingScreen from "./components/layout/LoadingScreen";
 
 function ProtectedRoute({ children }) {
-  const { isLoggedIn, isAuthChecked } = useSelector((state) => state.auth);
+  const { isLoggedIn, isAuthChecked, error } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    // If there's an auth error after being checked, redirect to login
+    if (isAuthChecked && error && !isLoggedIn) {
+      console.log("[PROTECTED] Auth error detected, redirecting to login");
+      dispatch(logout()); // Clear any remaining auth state
+      navigate("/login", { replace: true });
+    }
+  }, [isAuthChecked, error, isLoggedIn, navigate, dispatch]);
 
   if (!isAuthChecked) {
     return <LoadingScreen onComplete={() => {}} />;

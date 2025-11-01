@@ -1,6 +1,23 @@
 import { createSlice, createAsyncThunk, isRejectedWithValue } from "@reduxjs/toolkit";
 import api from '../../api/axiosInstance'
 
+// ============== UTILITY: JWT DECODER ==============
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const expiryTime = payload.exp * 1000; // Convert to milliseconds
+    const currentTime = Date.now();
+    const bufferTime = 5 * 60 * 1000; // 5 minutes buffer
+    
+    return currentTime >= (expiryTime - bufferTime);
+  } catch (error) {
+    console.error('[AUTH] Error decoding token:', error);
+    return true; // Treat invalid tokens as expired
+  }
+};
+
 // ========= LOGIN =========
 
 export const loginUser = createAsyncThunk(
@@ -35,33 +52,79 @@ export const signupUser = createAsyncThunk(
     }
 )
 
+// =========== REFRESH TOKEN ==============
+
+export const refreshAccessToken = createAsyncThunk(
+  'auth/refreshAccessToken',
+  async (_, { rejectWithValue }) => {
+    try {
+      console.log('[AUTH] Refreshing access token...');
+      const response = await api.post('/auth/refresh');
+      console.log('[AUTH] Token refresh successful');
+      return response.data.access_token;
+    } catch (error) {
+      console.error('[AUTH] Token refresh failed:', error);
+      return rejectWithValue('Session expired. Please login again.');
+    }
+  }
+);
+
 // ======== CHECK AUTH (on startup) ==========
 
 export const checkAuth = createAsyncThunk(
   'auth/checkAuth',
-  async (_, {rejectWithValue}) => {
+  async (_, {rejectWithValue, dispatch}) => {
     try {
       console.log('[AUTH] Checking auth from localStorage...');
       
-      // ✅ Just verify token exists in localStorage
-      // No backend call needed!
       const accessToken = localStorage.getItem('accessToken');
       const userId = localStorage.getItem('userId');
       const userEmail = localStorage.getItem('userEmail');
       const userTier = localStorage.getItem('userTier');
       
       console.log('[AUTH] localStorage check:');
-      console.log('[AUTH]   - accessToken:', accessToken ? '✅ Present' : '❌ Missing');
-      console.log('[AUTH]   - userId:', userId ? '✅ Present' : '❌ Missing');
+      console.log('[AUTH] - accessToken:', accessToken ? '✅ Present' : '❌ Missing');
+      console.log('[AUTH] - userId:', userId ? '✅ Present' : '❌ Missing');
       
       if (!accessToken || !userId) {
         console.log('[AUTH] No valid tokens in localStorage');
         return rejectWithValue('No stored tokens');
       }
       
-      console.log('[AUTH] ✅ Valid tokens found in localStorage');
+      // ✅ CHECK IF TOKEN IS EXPIRED
+      if (isTokenExpired(accessToken)) {
+        console.log('[AUTH] Token is expired, attempting refresh...');
+        
+        try {
+          // Attempt to refresh the token
+          const newToken = await dispatch(refreshAccessToken()).unwrap();
+          
+          console.log('[AUTH] ✅ Token refreshed successfully during checkAuth');
+          
+          // Return user data with new token
+          return {
+            user: {
+              user_id: userId,
+              email: userEmail,
+              tier: userTier
+            },
+            accessToken: newToken
+          };
+        } catch (refreshError) {
+          console.error('[AUTH] Failed to refresh token during checkAuth:', refreshError);
+          // Clear localStorage on refresh failure
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('userTier');
+          return rejectWithValue('Token expired and refresh failed');
+        }
+      }
       
-      // ✅ Return user data from localStorage
+      console.log('[AUTH] ✅ Valid token found in localStorage');
+      
+      // Return user data from localStorage
       return {
         user: {
           user_id: userId,
@@ -70,12 +133,14 @@ export const checkAuth = createAsyncThunk(
         },
         accessToken: accessToken
       };
+      
     } catch (error) {
       console.error('[AUTH] checkAuth error:', error);
       return rejectWithValue('Auth check failed');
     }
   }
 );
+
 
 // ============== INITIAL SETUP ================
 // ✅ Load tokens from localStorage on app start
@@ -91,7 +156,7 @@ const getInitialState = () => {
   return {
     user: null,
     accessToken: accessToken || null,
-    isLoggedIn: !!(accessToken && userId),  // ✅ Logged in if both exist
+    isLoggedIn: !!(accessToken && userId),
     isLoading: false,
     isAuthChecked: false,
     error: null
@@ -99,21 +164,6 @@ const getInitialState = () => {
 };
 
 const initialState = getInitialState();
-
-
-// =========== REFRESH TOKEN ==============
-
-export const refreshAccessToken = createAsyncThunk(
-  'auth/refreshAccessToken',
-  async (_, { rejectWithValue }) => {
-    try {
-      const response = await api.post('/auth/refresh');
-      return response.data.access_token;
-    } catch (error) {
-      return rejectWithValue('Session expired. Please login again.');
-    }
-  }
-);
 
 // ============== LOGOUT ================
 
@@ -124,7 +174,8 @@ export const logoutUser = createAsyncThunk(
       await api.post('/auth/logout');
       return null;
     } catch (error) {
-      return rejectWithValue('Logout failed');
+      console.warn('[AUTH] Logout request failed, but clearing local state anyway');
+      return null
     }
   }
 );
@@ -136,6 +187,7 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setAccessToken: (state, action) => {
+      console.log('[AUTH] setAccessToken called');
       state.accessToken = action.payload;
       localStorage.setItem('accessToken', action.payload);
     },
@@ -289,6 +341,77 @@ const authSlice = createSlice({
         state.isAuthChecked = true;  // ✅ CRITICAL: Must set true even on failure
         state.user = null;
         state.accessToken = null;
+      });
+    
+    // ===== REFRESH TOKEN =====
+    builder
+    .addCase(refreshAccessToken.pending, (state) => {
+      console.log('[AUTH] refreshAccessToken.pending');
+      // Don't set isLoading to true to avoid UI disruption
+    })
+    .addCase(refreshAccessToken.fulfilled, (state, action) => {
+      console.log('[AUTH] ✅ refreshAccessToken.fulfilled');
+      
+      const newToken = action.payload;
+      state.accessToken = newToken;
+      
+      // ✅ Update localStorage
+      localStorage.setItem('accessToken', newToken);
+      
+      console.log('[AUTH] New token saved to state and localStorage');
+    })
+    .addCase(refreshAccessToken.rejected, (state, action) => {
+      console.log('[AUTH] ❌ refreshAccessToken.rejected:', action.payload);
+      
+      // Token refresh failed - logout user
+      state.user = null;
+      state.accessToken = null;
+      state.isLoggedIn = false;
+      state.error = action.payload;
+      
+      // Clear localStorage
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userTier');
+    });
+
+    // ===== LOGOUT =====
+    builder
+      .addCase(logoutUser.pending, (state) => {
+        console.log('[AUTH] logoutUser.pending');
+      })
+      .addCase(logoutUser.fulfilled, (state) => {
+        console.log('[AUTH] ✅ logoutUser.fulfilled');
+        
+        state.user = null;
+        state.accessToken = null;
+        state.isLoggedIn = false;
+        state.error = null;
+        
+        // Clear localStorage
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userTier');
+      })
+      .addCase(logoutUser.rejected, (state) => {
+        console.log('[AUTH] logoutUser.rejected - clearing state anyway');
+        
+        // Even if logout fails, clear local state
+        state.user = null;
+        state.accessToken = null;
+        state.isLoggedIn = false;
+        state.error = null;
+        
+        // Clear localStorage
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userTier');
       });
   }
 });

@@ -11,6 +11,11 @@ import { nanoid } from "nanoid";
 import ReactMarkdown from "react-markdown";
 import api from '../api/axiosInstance';
 import { store } from "../store/store";
+import { getValidToken } from "../utils/streamingHelper";
+import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux"; 
+import { logout } from "../store/slices/authSlice";
+
 
 // Memoized Source Card Component
 const SourceCard = React.memo(({ source, index }) => (
@@ -39,6 +44,11 @@ export default function ChatPage() {
     document.title = "Veritly AI - Legal Research Assistant";
   }, []);
 
+  // Hooks setup
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  // State setup
   const [threads, setThreads] = useState([{ id: nanoid(), title: "New Chat" }]);
   const [messagesByThread, setMessagesByThread] = useState({});
   const [currentThreadId, setCurrentThreadId] = useState(threads[0].id);
@@ -49,14 +59,17 @@ export default function ChatPage() {
   const [error, setError] = useState(null);
   const [generationTimes, setGenerationTimes] = useState({});
 
+  // Ref
   const loadingTimer = useRef(null);
   const streamStartTime = useRef(null);
   const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // Derived states
   const currentMessages = messagesByThread[currentThreadId] || [];
   const isSendDisabled = message.trim().length === 0;
 
+  // Scroll helper
   const scrollToBottom = useCallback((smooth = true) => {
     messagesContainerRef.current?.scrollTo({
       top: messagesContainerRef.current.scrollHeight,
@@ -93,79 +106,12 @@ export default function ChatPage() {
     );
   }, [threads, searchQuery]);
 
-  const refreshAccessToken = async () => {
-    try {
-      console.log("[ChatPage] Attempting to refresh token...");
-      const response = await api.post("/auth/refresh");
-      const newToken = response.data.access_token;
-      console.log("[ChatPage] Token refreshed successfully");
-      return newToken;
-    } catch (error) {
-      console.error("[ChatPage] Token refresh failed:", error);
-      throw error;
-    }
-  };
-
-  const streamQueryWithTokenRefresh = async (text, abortController) => {
-    let state = store.getState();
-    let accessToken = state.auth.accessToken;
-
-    // First attempt with current token
-    let response = await fetch("https://api.veritlyai.com/query/stream", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        query: text,
-        threadId: currentThreadId,
-      }),
-      signal: abortController.signal,
-    });
-
-    // ✅ If 401, refresh token and retry
-    if (response.status === 401) {
-      console.log("[ChatPage] Got 401, refreshing token and retrying...");
-      try {
-        // Refresh the token using axios (has interceptor logic)
-        const newToken = await refreshAccessToken();
-
-        // Update Redux state
-        store.dispatch(
-          require("../store/slices/authSlice").setAccessToken(newToken)
-        );
-        localStorage.setItem("accessToken", newToken);
-
-        // Retry the request with new token
-        response = await fetch("https://api.veritlyai.com/query/stream", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${newToken}`,
-          },
-          body: JSON.stringify({
-            query: text,
-            threadId: currentThreadId,
-          }),
-          signal: abortController.signal,
-        });
-      } catch (refreshError) {
-        console.error("[ChatPage] Token refresh failed, redirecting to login");
-        // Redirect to login if refresh fails
-        window.location.href = "/login";
-        throw refreshError;
-      }
-    }
-
-    return response;
-  };
-
   const handleSend = async () => {
     if (isSendDisabled) return;
     const text = message.trim();
     setError(null);
 
+    // Update thread title from "New Chat" to first message
     setThreads((prev) =>
       prev.map((thread) =>
         thread.id === currentThreadId && thread.title === "New Chat"
@@ -177,6 +123,7 @@ export default function ChatPage() {
       )
     );
 
+    // Add user message to UI
     const userMsg = { id: nanoid(), sender: "user", text };
     setMessagesByThread((prev) => ({
       ...prev,
@@ -184,6 +131,7 @@ export default function ChatPage() {
     }));
     setMessage("");
 
+    // ============== LOADING TIMER ==============
     let seconds = 0;
     setLoadingLabel(`Analyzing... ${seconds}s`);
     loadingTimer.current = setInterval(() => {
@@ -197,25 +145,145 @@ export default function ChatPage() {
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => abortController.abort(), 60000);
 
-      const state = store.getState();
-      const accessToken = state.auth.accessToken;
+      // ============== STEP 1: GET VALID TOKEN ==============
+      // ✅ THIS IS THE KEY CHANGE
+      // Get token with automatic refresh if expired
+      let token;
+      try {
+        token = await getValidToken();
+        console.log("[CHAT] ✅ Valid token obtained");
+      } catch (tokenError) {
+        console.error("[CHAT] Failed to get valid token:", tokenError);
+        throw new Error("Authentication failed. Please login again.");
+      }
 
-      const response = await streamQueryWithTokenRefresh(text, abortController);
+      // ============== STEP 2: MAKE STREAMING REQUEST ==============
+      // ✅ REPLACE THE streamQueryWithTokenRefresh() CALL WITH THIS
+      const response = await fetch("https://api.veritlyai.com/chat/stream", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`, // ✅ Add token to header
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: text,
+          // Remove currentConversationId if not needed
+          // conversation_id: currentConversationId,
+        }),
+        signal: abortController.signal,
+      });
 
       clearTimeout(timeoutId);
 
-      if (!response.ok)
+      // ============== STEP 3: HANDLE 401 ERRORS WITH RETRY ==============
+      if (response.status === 401) {
+        console.log(
+          "[CHAT] Received 401, attempting token refresh and retry..."
+        );
+
+        try {
+          // Try to refresh token
+          const newToken = await getValidToken();
+          console.log("[CHAT] ✅ Token refreshed, retrying request");
+
+          // Retry the request with new token
+          const retryResponse = await fetch(
+            "https://api.veritlyai.com/chat/stream",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${newToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                message: text,
+              }),
+              signal: abortController.signal,
+            }
+          );
+
+          if (!retryResponse.ok) {
+            throw new Error(
+              `Retry failed with status: ${retryResponse.status}`
+            );
+          }
+
+          // Use retry response
+          await handleStream(retryResponse);
+          return; // Exit early
+        } catch (refreshError) {
+          console.error("[CHAT] Token refresh failed:", refreshError);
+          // Logout and redirect
+          dispatch(logout());
+          navigate("/login");
+          throw new Error("Session expired. Please login again.");
+        }
+      }
+
+      // ============== STEP 4: CHECK RESPONSE STATUS ==============
+      if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
-      if (!response.body) throw new Error("No response body");
+      }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let aiText = "";
-      let firstChunk = true;
-      let sources = [];
-      let buffer = "";
-      let aiMessageId = null;
+      if (!response.body) {
+        throw new Error("No response body");
+      }
 
+      // ============== STEP 5: START STREAMING ==============
+      await handleStream(response);
+    } catch (error) {
+      console.error("[CHAT] Error:", error);
+
+      if (loadingTimer.current) {
+        clearInterval(loadingTimer.current);
+        loadingTimer.current = null;
+      }
+      setLoadingLabel("");
+
+      // ============== ERROR HANDLING ==============
+      let errorMessage = "Sorry, there was an error processing your request.";
+
+      if (
+        error.name === "AbortError" ||
+        error.message === "The user aborted a request."
+      ) {
+        errorMessage = "Request timed out. Please try again.";
+      } else if (error.message.includes("Failed to fetch")) {
+        errorMessage = "Network error. Please check your connection.";
+      } else if (
+        error.message.includes("Session expired") ||
+        error.message.includes("Please login again")
+      ) {
+        // Already logged out and redirected in retry logic
+        return;
+      }
+
+      setError(errorMessage);
+
+      // Add error message to chat
+      const errorMsg = {
+        id: nanoid(),
+        sender: "ai",
+        text: errorMessage,
+        sources: [],
+      };
+      setMessagesByThread((prev) => ({
+        ...prev,
+        [currentThreadId]: [...(prev[currentThreadId] || []), errorMsg],
+      }));
+    }
+  };
+
+  const handleStream = async (response) => {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let aiText = "";
+    let firstChunk = true;
+    let sources = [];
+    let buffer = "";
+    let aiMessageId = null;
+
+    try {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -230,6 +298,7 @@ export default function ChatPage() {
           if (line.startsWith("data: ")) {
             const dataStr = line.slice(6).trim();
 
+            // ============== CHECK FOR DONE MARKER ==============
             if (dataStr === "[DONE]") {
               if (loadingTimer.current) {
                 clearInterval(loadingTimer.current);
@@ -251,21 +320,25 @@ export default function ChatPage() {
               continue;
             }
 
+            // Skip ping messages
             if (dataStr.startsWith(":ping") || dataStr === "") continue;
 
             try {
               const data = JSON.parse(dataStr);
 
+              // ============== HANDLE METADATA (SOURCES) ==============
               if (data.metadata && Array.isArray(data.metadata)) {
                 sources = data.metadata;
               }
 
+              // ============== HANDLE STREAMED CONTENT ==============
               if (data.choices?.[0]?.delta) {
                 const deltaContent = data.choices[0].delta.content || "";
 
                 if (deltaContent) {
                   aiText += deltaContent;
 
+                  // ============== FIRST CHUNK: CREATE MESSAGE ==============
                   if (firstChunk) {
                     if (loadingTimer.current) {
                       clearInterval(loadingTimer.current);
@@ -290,6 +363,7 @@ export default function ChatPage() {
                     }));
                     firstChunk = false;
                   } else {
+                    // ============== SUBSEQUENT CHUNKS: UPDATE MESSAGE ==============
                     setMessagesByThread((prev) => {
                       const msgs = [...(prev[currentThreadId] || [])];
                       const lastMsgIndex = msgs.length - 1;
@@ -312,18 +386,38 @@ export default function ChatPage() {
                 }
               }
 
+              // ============== HANDLE ERRORS FROM BACKEND ==============
               if (data.error) throw new Error(data.error);
             } catch (parseError) {
               console.warn("Failed to parse SSE data:", dataStr, parseError);
             }
           }
         }
+
+        // ============== HANDLE FINAL BUFFER ==============
         if (buffer.trim() && buffer.startsWith("data: ")) {
           const dataStr = buffer.slice(6).trim();
           if (dataStr && dataStr !== "[DONE]") {
             try {
               const data = JSON.parse(dataStr);
-              // handle final data
+              if (data.choices?.[0]?.delta?.content) {
+                const finalContent = data.choices[0].delta.content;
+                aiText += finalContent;
+                setMessagesByThread((prev) => {
+                  const msgs = [...(prev[currentThreadId] || [])];
+                  const lastMsgIndex = msgs.length - 1;
+                  if (
+                    lastMsgIndex >= 0 &&
+                    msgs[lastMsgIndex].id === aiMessageId
+                  ) {
+                    msgs[lastMsgIndex] = {
+                      ...msgs[lastMsgIndex],
+                      text: aiText,
+                    };
+                  }
+                  return { ...prev, [currentThreadId]: msgs };
+                });
+              }
             } catch (e) {
               console.warn("Failed to parse final SSE data:", buffer, e);
             }
@@ -331,36 +425,8 @@ export default function ChatPage() {
         }
       }
     } catch (error) {
-      console.error("Fetch error:", error);
-
-      if (loadingTimer.current) {
-        clearInterval(loadingTimer.current);
-        loadingTimer.current = null;
-      }
-      setLoadingLabel("");
-
-      let errorMessage = "Sorry, there was an error processing your request.";
-      if (
-        error.name === "AbortError" ||
-        error.message === "The user aborted a request."
-      ) {
-        errorMessage = "Request timed out. Please try again.";
-      } else if (error.message.includes("Failed to fetch")) {
-        errorMessage = "Network error. Please check your connection.";
-      }
-
-      setError(errorMessage);
-
-      const errorMsg = {
-        id: nanoid(),
-        sender: "ai",
-        text: errorMessage,
-        sources: [],
-      };
-      setMessagesByThread((prev) => ({
-        ...prev,
-        [currentThreadId]: [...(prev[currentThreadId] || []), errorMsg],
-      }));
+      console.error("[CHAT] Stream reading error:", error);
+      throw error;
     }
   };
 
