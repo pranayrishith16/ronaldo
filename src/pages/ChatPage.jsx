@@ -166,9 +166,8 @@ export default function ChatPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: text,
-          // Remove currentConversationId if not needed
-          // conversation_id: currentConversationId,
+          query: text,
+          stream:true
         }),
         signal: abortController.signal,
       });
