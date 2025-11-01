@@ -93,6 +93,74 @@ export default function ChatPage() {
     );
   }, [threads, searchQuery]);
 
+  const refreshAccessToken = async () => {
+    try {
+      console.log("[ChatPage] Attempting to refresh token...");
+      const response = await api.post("/auth/refresh");
+      const newToken = response.data.access_token;
+      console.log("[ChatPage] Token refreshed successfully");
+      return newToken;
+    } catch (error) {
+      console.error("[ChatPage] Token refresh failed:", error);
+      throw error;
+    }
+  };
+
+  const streamQueryWithTokenRefresh = async (text, abortController) => {
+    let state = store.getState();
+    let accessToken = state.auth.accessToken;
+
+    // First attempt with current token
+    let response = await fetch("https://api.veritlyai.com/query/stream", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        query: text,
+        threadId: currentThreadId,
+      }),
+      signal: abortController.signal,
+    });
+
+    // ✅ If 401, refresh token and retry
+    if (response.status === 401) {
+      console.log("[ChatPage] Got 401, refreshing token and retrying...");
+      try {
+        // Refresh the token using axios (has interceptor logic)
+        const newToken = await refreshAccessToken();
+
+        // Update Redux state
+        store.dispatch(
+          require("../store/slices/authSlice").setAccessToken(newToken)
+        );
+        localStorage.setItem("accessToken", newToken);
+
+        // Retry the request with new token
+        response = await fetch("https://api.veritlyai.com/query/stream", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${newToken}`,
+          },
+          body: JSON.stringify({
+            query: text,
+            threadId: currentThreadId,
+          }),
+          signal: abortController.signal,
+        });
+      } catch (refreshError) {
+        console.error("[ChatPage] Token refresh failed, redirecting to login");
+        // Redirect to login if refresh fails
+        window.location.href = "/login";
+        throw refreshError;
+      }
+    }
+
+    return response;
+  };
+
   const handleSend = async () => {
     if (isSendDisabled) return;
     const text = message.trim();
@@ -132,18 +200,7 @@ export default function ChatPage() {
       const state = store.getState();
       const accessToken = state.auth.accessToken;
 
-      const response = await fetch("https://api.veritlyai.com/query/stream", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`, // ✅ Manually add token
-        },
-        body: JSON.stringify({
-          query: text,
-          threadId: currentThreadId,
-        }),
-        signal: abortController.signal,
-      });
+      const response = await streamQueryWithTokenRefresh(text, abortController);
 
       clearTimeout(timeoutId);
 
