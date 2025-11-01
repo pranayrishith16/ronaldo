@@ -159,7 +159,7 @@ export default function ChatPage() {
 
       // ============== STEP 2: MAKE STREAMING REQUEST ==============
       // ✅ REPLACE THE streamQueryWithTokenRefresh() CALL WITH THIS
-      const response = await fetch("https://api.veritlyai.com/chat/stream", {
+      const response = await fetch("https://api.veritlyai.com/query/stream", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`, // ✅ Add token to header
@@ -188,7 +188,7 @@ export default function ChatPage() {
 
           // Retry the request with new token
           const retryResponse = await fetch(
-            "https://api.veritlyai.com/chat/stream",
+            "https://api.veritlyai.com/query/stream",
             {
               method: "POST",
               headers: {
