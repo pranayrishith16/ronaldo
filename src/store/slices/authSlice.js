@@ -59,7 +59,7 @@ export const refreshAccessToken = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       console.log('[AUTH] Refreshing access token...');
-      const response = await api.post('/auth/refresh');
+      const response = await api.post('/auth/refresh-token');
       console.log('[AUTH] Token refresh successful');
       return response.data.access_token;
     } catch (error) {
