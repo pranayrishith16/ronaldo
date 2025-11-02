@@ -51,31 +51,6 @@ export const createNewConversation = createAsyncThunk(
   }
 );
 
-// ============ NEW: SEND QUERY/MESSAGE ============
-export const sendQueryMessage = createAsyncThunk(
-  'chat/sendQueryMessage',
-  async ({ conversationId, query }, { rejectWithValue }) => {
-    try {
-      console.log('[CHAT] Sending query to conversation:', conversationId);
-      console.log('[CHAT] Query:', query);
-      
-      const response = await api.post(`api/memory/conversations/${conversationId}/messages`, {
-        content: query,
-        role: 'user'
-      });
-      
-      console.log('[CHAT] ✅ Query sent successfully:', response.data);
-      return {
-        conversationId,
-        message: response.data
-      };
-    } catch (error) {
-      console.error('[CHAT] ❌ Error sending query:', error);
-      return rejectWithValue(error.message || 'Failed to send query');
-    }
-  }
-);
-
 // ============ NEW: DELETE CONVERSATION ============
 export const deleteConversation = createAsyncThunk(
   'chat/deleteConversation',
@@ -100,9 +75,7 @@ const initialState = {
   currentMessages: [],
   isLoadingConversations: false,
   isLoadingMessages: false,
-  isLoadingQuery: false,
   error: null,
-  streamingContent: '',
 };
 
 const chatSlice = createSlice({
@@ -114,16 +87,15 @@ const chatSlice = createSlice({
       console.log('[CHAT] Selected conversation:', action.payload);
     },
 
+    // Sync reducer to start a new chat
+    newChat: (state) => {
+      state.currentConversationId = null;
+      state.currentMessages = [];
+      console.log("[CHAT] Started new chat");
+    },
+
     setCurrentMessages: (state, action) => {
       state.currentMessages = action.payload;
-    },
-
-    addStreamingContent: (state, action) => {
-      state.streamingContent += action.payload;
-    },
-
-    resetStreamingContent: (state) => {
-      state.streamingContent = '';
     },
 
     addUserMessage: (state, action) => {
@@ -147,12 +119,6 @@ const chatSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-
-    newChat: (state) => {
-      state.currentConversationId = null;
-      state.currentMessages = [];
-      state.streamingContent = '';
-    },
   },
 
   extraReducers: (builder) => {
@@ -166,7 +132,10 @@ const chatSlice = createSlice({
         state.isLoadingConversations = false;
         state.conversations = action.payload;
         console.log('[CHAT] Conversations set:', action.payload.length, 'conversations');
-      })
+          // Auto-select first conversation if available and none selected
+          if (action.payload.length > 0 && !state.currentConversationId) {
+            state.currentConversationId = action.payload[0].id;
+      }})
       .addCase(fetchConversations.rejected, (state, action) => {
         state.isLoadingConversations = false;
         state.error = action.payload;
@@ -190,23 +159,7 @@ const chatSlice = createSlice({
       .addCase(fetchConversationMessages.rejected, (state, action) => {
         state.isLoadingMessages = false;
         state.error = action.payload;
-      });
-
-    builder
-      .addCase(sendQueryMessage.pending, (state) => {
-        state.isLoadingQuery = true;
-        state.error = null;
-      })
-      .addCase(sendQueryMessage.fulfilled, (state, action) => {
-        state.isLoadingQuery = false;
-        // Message is already added optimistically in ChatPage
-        // This just confirms it was saved on backend
-        console.log('[CHAT] Query confirmed saved on backend');
-      })
-      .addCase(sendQueryMessage.rejected, (state, action) => {
-        state.isLoadingQuery = false;
-        state.error = action.payload;
-        // TODO: Remove the optimistically added message if persistence failed
+        state.currentMessages = [];
       });
 
     // Create Conversation
@@ -242,9 +195,12 @@ const chatSlice = createSlice({
         );
         
         if (state.currentConversationId === deletedId) {
-          state.currentConversationId = null;
+          if (state.conversations.length > 0) {
+            state.currentConversationId = state.conversations[0].id;
+          } else {
+            state.currentConversationId = null;
+          }
           state.currentMessages = [];
-          state.streamingContent = '';
         }
         console.log('[CHAT] Conversation deleted');
       })
