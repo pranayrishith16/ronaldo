@@ -130,7 +130,7 @@ export default function ChatPage() {
           firstMessageText.substring(0, 50) +
           (firstMessageText.length > 50 ? "..." : "");
 
-        const response = await api.post("/conversations", {
+        const response = await api.post("api/memory/conversations", {
           title,
         });
 
@@ -200,7 +200,7 @@ export default function ChatPage() {
       // ============ ISSUE FIX #2: PERSIST USER MESSAGE TO BACKEND ============
       try {
         console.log("[CHAT] Persisting user message to backend...");
-        await api.post(`/conversations/${conversationId}/messages`, {
+        await api.post(`api/memory/conversations/${conversationId}/messages`, {
           content: text,
           role: "user",
         });

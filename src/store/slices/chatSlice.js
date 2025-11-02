@@ -8,7 +8,7 @@ export const fetchConversations = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       console.log('[CHAT] Fetching conversations...');
-      const response = await api.get('/conversations');
+      const response = await api.get('api/memory/conversations');
       console.log('[CHAT] ✅ Conversations fetched:', response.data);
       return response.data.conversations || [];
     } catch (error) {
@@ -23,7 +23,7 @@ export const fetchConversationMessages = createAsyncThunk(
   async (conversationId, { rejectWithValue }) => {
     try {
       console.log('[CHAT] Fetching messages for:', conversationId);
-      const response = await api.get(`/conversations/${conversationId}/messages`);
+      const response = await api.get(`api/memory/conversations/${conversationId}/messages`);
       console.log('[CHAT] ✅ Messages fetched:', response.data);
       return {
         conversationId,
@@ -41,7 +41,7 @@ export const createNewConversation = createAsyncThunk(
   async ({ title }, { rejectWithValue }) => {
     try {
       console.log('[CHAT] Creating new conversation:', title);
-      const response = await api.post('/conversations', { title });
+      const response = await api.post('api/memory/conversations', { title });
       console.log('[CHAT] ✅ Conversation created:', response.data);
       return response.data.conversation;
     } catch (error) {
@@ -59,7 +59,7 @@ export const sendQueryMessage = createAsyncThunk(
       console.log('[CHAT] Sending query to conversation:', conversationId);
       console.log('[CHAT] Query:', query);
       
-      const response = await api.post(`/conversations/${conversationId}/messages`, {
+      const response = await api.post(`api/memory/conversations/${conversationId}/messages`, {
         content: query,
         role: 'user'
       });
@@ -82,7 +82,7 @@ export const deleteConversation = createAsyncThunk(
   async (conversationId, { rejectWithValue }) => {
     try {
       console.log('[CHAT] Deleting conversation:', conversationId);
-      await api.delete(`/conversations/${conversationId}`);
+      await api.delete(`api/memory/conversations/${conversationId}`);
       console.log('[CHAT] ✅ Conversation deleted');
       return conversationId;
     } catch (error) {
