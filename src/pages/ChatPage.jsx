@@ -110,7 +110,7 @@ export default function ChatPage() {
         console.log("[CHAT] Fetching previous conversations from backend...");
         setIsLoadingConversations(true);
 
-        const response = await api.get("api/memory/conversations");
+        const response = await api.get("/api/memory/conversations");
         const conversations = response.data.conversations || [];
 
         console.log("[CHAT] ✅ Fetched conversations:", conversations);
@@ -150,7 +150,7 @@ export default function ChatPage() {
     try {
       console.log("[CHAT] Fetching messages for conversation:", conversationId);
       const response = await api.get(
-        `api/memory/conversations/${conversationId}/messages`
+        `/api/memory/conversations/${conversationId}/messages`
       );
 
       const messages = response.data.messages || [];
@@ -202,7 +202,7 @@ export default function ChatPage() {
           firstMessageText.substring(0, 50) +
           (firstMessageText.length > 50 ? "..." : "");
 
-        const response = await api.post("api/memory/conversations", {
+        const response = await api.post("/api/memory/conversations", {
           title,
         });
 
@@ -272,7 +272,7 @@ export default function ChatPage() {
       // ============ ISSUE FIX #2: PERSIST USER MESSAGE TO BACKEND ============
       try {
         console.log("[CHAT] Persisting user message to backend...");
-        await api.post(`api/memory/conversations/${conversationId}/messages`, {
+        await api.post(`/api/memory/conversations/${conversationId}/messages`, {
           content: text,
           role: "user",
         });
@@ -599,7 +599,7 @@ export default function ChatPage() {
       // Delete from backend if conversationId exists
       if (threadToDelete?.conversationId) {
         api
-          .delete(`/conversations/${threadToDelete.conversationId}`)
+          .delete(`/api/memory/conversations/${threadToDelete.conversationId}`)
           .then(() =>
             console.log("[CHAT] ✅ Conversation deleted from backend")
           )
