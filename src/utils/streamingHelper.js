@@ -61,125 +61,127 @@ const isTokenExpired = (token) => {
    * @param {Function} onError - Callback for errors
    * @param {Function} onComplete - Callback when stream completes
    */
-  export const createStreamingRequest = async (
-    url,
-    options = {},
-    onMessage,
-    onError,
-    onComplete
-  ) => {
-    try {
-      // Get a valid token (will refresh if needed)
-      const token = await getValidToken();
-      
-      console.log('[STREAM] Starting streaming request to:', url);
-      
-      // Create the fetch request with token
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[STREAM] Request failed:', response.status, errorText);
-        
-        // Handle 401 specifically
-        if (response.status === 401) {
-          console.log('[STREAM] Received 401, attempting token refresh and retry...');
-          
+export const createStreamingRequest = async (
+  url,
+  options = {},
+  onMessage,
+  onError,
+  onComplete
+) => {
+  try {
+    // Get a valid token (will refresh if needed)
+    const token = await getValidToken();
+    console.log('[STREAM] Starting streaming request to:', url);
+    console.log('[STREAM] Conversation ID:', conversationId);
+
+    // CRITICAL: Add conversationId to request body
+    const body = {
+      ...(typeof options.body === 'string' ? JSON.parse(options.body) : options.body),
+      conversation_id: conversationId,
+    };
+
+    // Create the fetch request with token
+    const response = await fetch(url, {
+      ...options,
+      body: JSON.stringify(body),
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[STREAM] Request failed:', response.status, errorText);
+
+      // Handle 401 specifically
+      if (response.status === 401) {
+        console.log('[STREAM] Received 401, attempting token refresh and retry...');
+        try {
+          // Try to refresh token
+          const newToken = await store.dispatch(refreshAccessToken()).unwrap();
+
+          // Retry the request with new token
+          const retryResponse = await fetch(url, {
+            ...options,
+            body: JSON.stringify(body),
+            headers: {
+              ...options.headers,
+              'Authorization': `Bearer ${newToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!retryResponse.ok) {
+            throw new Error(`Request failed with status: ${retryResponse.status}`);
+          }
+
+          // Continue with the retry response
+          return handleStreamResponse(retryResponse, onMessage, onError, onComplete);
+        } catch (refreshError) {
+          console.error('[STREAM] Token refresh failed on retry');
+          store.dispatch(logout());
+          throw new Error('Session expired. Please login again.');
+        }
+      }
+
+      throw new Error(`Request failed with status: ${response.status}`);
+    }
+
+    return handleStreamResponse(response, onMessage, onError, onComplete);
+  } catch (error) {
+    console.error('[STREAM] Streaming request error:', error);
+    onError?.(error);
+    throw error;
+  }
+};
+  
+/**
+ * Handle the streaming response
+ */
+const handleStreamResponse = async (response, onMessage, onError, onComplete) => {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        console.log('[STREAM] Stream completed');
+        onComplete?.();
+        break;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            console.log('[STREAM] Received [DONE] marker');
+            onComplete?.();
+            return;
+          }
+
           try {
-            // Try to refresh token
-            const newToken = await store.dispatch(refreshAccessToken()).unwrap();
-            
-            // Retry the request with new token
-            const retryResponse = await fetch(url, {
-              ...options,
-              headers: {
-                ...options.headers,
-                'Authorization': `Bearer ${newToken}`,
-                'Content-Type': 'application/json',
-              },
-            });
-            
-            if (!retryResponse.ok) {
-              throw new Error(`Request failed with status: ${retryResponse.status}`);
-            }
-            
-            // Continue with the retry response
-            return handleStreamResponse(retryResponse, onMessage, onError, onComplete);
-            
-          } catch (refreshError) {
-            console.error('[STREAM] Token refresh failed on retry');
-            store.dispatch(logout());
-            throw new Error('Session expired. Please login again.');
-          }
-        }
-        
-        throw new Error(`Request failed with status: ${response.status}`);
-      }
-      
-      return handleStreamResponse(response, onMessage, onError, onComplete);
-      
-    } catch (error) {
-      console.error('[STREAM] Streaming request error:', error);
-      onError?.(error);
-      throw error;
-    }
-  };
-  
-  /**
-   * Handle the streaming response
-   */
-  const handleStreamResponse = async (response, onMessage, onError, onComplete) => {
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) {
-          console.log('[STREAM] Stream completed');
-          onComplete?.();
-          break;
-        }
-        
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            
-            if (data === '[DONE]') {
-              console.log('[STREAM] Received [DONE] marker');
-              onComplete?.();
-              return;
-            }
-            
-            try {
-              const parsed = JSON.parse(data);
-              onMessage?.(parsed);
-            } catch (e) {
-              // Not JSON, might be plain text
-              onMessage?.({ content: data });
-            }
+            const parsed = JSON.parse(data);
+            onMessage?.(parsed);
+          } catch (e) {
+            // Not JSON, might be plain text
+            onMessage?.({ content: data });
           }
         }
       }
-    } catch (error) {
-      console.error('[STREAM] Error reading stream:', error);
-      onError?.(error);
-      throw error;
     }
-  };
+  } catch (error) {
+    console.error('[STREAM] Error reading stream:', error);
+    onError?.(error);
+    throw error;
+  }
+};
   
-  export default {
-    getValidToken,
-    createStreamingRequest
-  };
+export default {
+  getValidToken,
+  createStreamingRequest
+};
