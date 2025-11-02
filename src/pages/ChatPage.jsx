@@ -47,7 +47,7 @@ export default function ChatPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // State setup - ISSUE FIX #9 & #5: Add conversation tracking for backend sync
+  // State setup
   const [threads, setThreads] = useState([
     { id: nanoid(), title: "New Chat", conversationId: null },
   ]);
@@ -59,6 +59,7 @@ export default function ChatPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [error, setError] = useState(null);
   const [generationTimes, setGenerationTimes] = useState({});
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
 
   // Ref
   const loadingTimer = useRef(null);
@@ -101,6 +102,77 @@ export default function ChatPage() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  // FETCH CONVERSATIONS ON MOUNT
+  useEffect(() => {
+    const fetchConversationsFromBackend = async () => {
+      try {
+        console.log("[CHAT] Fetching previous conversations from backend...");
+        setIsLoadingConversations(true);
+
+        const response = await api.get("api/memory/conversations");
+        const conversations = response.data.conversations || [];
+
+        console.log("[CHAT] ✅ Fetched conversations:", conversations);
+
+        if (conversations.length > 0) {
+          // Convert backend conversations to thread format
+          const threadsFromBackend = conversations.map((conv) => ({
+            id: conv.id,
+            title: conv.title || "Untitled Conversation",
+            conversationId: conv.id,
+            created_at: conv.created_at,
+          }));
+
+          // Set threads with backend conversations
+          setThreads(threadsFromBackend);
+          setCurrentThreadId(threadsFromBackend[0].id);
+
+          // Fetch messages for the first conversation
+          await fetchMessagesForConversation(threadsFromBackend[0].id);
+        } else {
+          console.log("[CHAT] No previous conversations found");
+        }
+
+        setIsLoadingConversations(false);
+      } catch (error) {
+        console.error("[CHAT] Failed to fetch conversations:", error);
+        setIsLoadingConversations(false);
+        // Keep default state
+      }
+    };
+
+    fetchConversationsFromBackend();
+  }, []);
+
+  // FETCH MESSAGES FOR CONVERSATION
+  const fetchMessagesForConversation = async (conversationId) => {
+    try {
+      console.log("[CHAT] Fetching messages for conversation:", conversationId);
+      const response = await api.get(
+        `api/memory/conversations/${conversationId}/messages`
+      );
+
+      const messages = response.data.messages || [];
+      console.log("[CHAT] ✅ Fetched messages:", messages);
+
+      // Convert messages to your format
+      const formattedMessages = messages.map((msg) => ({
+        id: msg.id,
+        sender: msg.role === "user" ? "user" : "ai",
+        text: msg.content,
+        sources: msg.sources || [],
+      }));
+
+      // Set messages for this thread
+      setMessagesByThread((prev) => ({
+        ...prev,
+        [conversationId]: formattedMessages,
+      }));
+    } catch (error) {
+      console.error("[CHAT] Failed to fetch messages:", error);
+    }
+  };
 
   const filteredThreads = useMemo(() => {
     if (!searchQuery.trim()) return threads;
