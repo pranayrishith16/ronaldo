@@ -567,7 +567,7 @@ export default function ChatPage() {
             <div className="text-center text-slate-500 text-sm py-8">
               No conversations found
             </div>
-          ) : filteredThreads.length === 0 ? (
+          ) : filteredConversations.length === 0 ? (
             <div className="text-center text-slate-500 text-sm py-8">
               No conversations found
             </div>
