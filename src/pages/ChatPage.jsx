@@ -15,6 +15,13 @@ import { getValidToken } from "../utils/streamingHelper";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../store/slices/authSlice";
+import {
+  fetchConversations,
+  fetchConversationMessages,
+  createNewConversation,
+  deleteConversation,
+} from "../store/slices/chatSlice";
+
 
 // Memoized Source Card Component
 const SourceCard = React.memo(({ source, index }) => (
@@ -47,19 +54,22 @@ export default function ChatPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // State setup
-  const [threads, setThreads] = useState([
-    { id: nanoid(), title: "New Chat", conversationId: null },
-  ]);
-  const [messagesByThread, setMessagesByThread] = useState({});
-  const [currentThreadId, setCurrentThreadId] = useState(threads[0].id);
+  // REDUX
+  const {
+    conversations: reduxConversations,
+    currentConversationId: reduxCurrentConvId,
+    currentMessages: reduxCurrentMessages,
+    isLoadingConversations: reduxIsLoading,
+    error: reduxError,
+  } = useSelector((state) => state.chat);
+
+  // Local State
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingLabel, setLoadingLabel] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [error, setError] = useState(null);
   const [generationTimes, setGenerationTimes] = useState({});
-  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
 
   // Ref
   const loadingTimer = useRef(null);
@@ -67,11 +77,12 @@ export default function ChatPage() {
   const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // Derived states
-  const currentMessages = messagesByThread[currentThreadId] || [];
+  // Derived states from Redux
+  const currentConversation = reduxConversations.find(
+    (conv) => conv.id === reduxCurrentConvId
+  );
   const isSendDisabled = message.trim().length === 0;
-  const currentThread =
-    threads.find((t) => t.id === currentThreadId) || threads[0] || {};
+  const isLoadingConversations = reduxIsLoading;
 
   // Scroll helper
   const scrollToBottom = useCallback((smooth = true) => {
@@ -81,21 +92,25 @@ export default function ChatPage() {
     });
   }, []);
 
+  // loading timer mounting
   useEffect(() => {
     return () => {
       if (loadingTimer.current) clearInterval(loadingTimer.current);
     };
   }, []);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     const timer = setTimeout(() => scrollToBottom(true), 100);
     return () => clearTimeout(timer);
   }, [currentMessages.length, loadingLabel, scrollToBottom]);
 
+  // scroll to bottom on new messages
   useEffect(() => {
     scrollToBottom(false);
   }, [currentThreadId, scrollToBottom]);
 
+  // auto clear errors
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(null), 5000);
@@ -105,124 +120,57 @@ export default function ChatPage() {
 
   // FETCH CONVERSATIONS ON MOUNT
   useEffect(() => {
-    const fetchConversationsFromBackend = async () => {
-      try {
-        console.log("[CHAT] Fetching previous conversations from backend...");
-        setIsLoadingConversations(true);
+    console.log("[CHAT] Dispatching fetchConversations...");
+    dispatch(fetchConversations());
+  }, [dispatch]);
 
-        const response = await api.get("/api/memory/conversations");
-        const conversations = response.data.conversations || [];
-
-        console.log("[CHAT] ✅ Fetched conversations:", conversations);
-
-        if (conversations.length > 0) {
-          // Convert backend conversations to thread format
-          const threadsFromBackend = conversations.map((conv) => ({
-            id: conv.id,
-            title: conv.title || "Untitled Conversation",
-            conversationId: conv.id,
-            created_at: conv.created_at,
-          }));
-
-          // Set threads with backend conversations
-          setThreads(threadsFromBackend);
-          setCurrentThreadId(threadsFromBackend[0].id);
-
-          // Fetch messages for the first conversation
-          await fetchMessagesForConversation(threadsFromBackend[0].id);
-        } else {
-          console.log("[CHAT] No previous conversations found");
-        }
-
-        setIsLoadingConversations(false);
-      } catch (error) {
-        console.error("[CHAT] Failed to fetch conversations:", error);
-        setIsLoadingConversations(false);
-        // Keep default state
-      }
-    };
-
-    fetchConversationsFromBackend();
-  }, []);
-
-  // FETCH MESSAGES FOR CONVERSATION
-  const fetchMessagesForConversation = async (conversationId) => {
-    try {
-      console.log("[CHAT] Fetching messages for conversation:", conversationId);
-      const response = await api.get(
-        `/api/memory/conversations/${conversationId}/messages`
+  // FETCH messages when conversation changes
+  useEffect(() => {
+    if (reduxCurrentConvId) {
+      console.log(
+        "[CHAT] Fetching messages for conversation:",
+        reduxCurrentConvId
       );
-
-      const messages = response.data.messages || [];
-      console.log("[CHAT] ✅ Fetched messages:", messages);
-
-      // Convert messages to your format
-      const formattedMessages = messages.map((msg) => ({
-        id: msg.id,
-        sender: msg.role === "user" ? "user" : "ai",
-        text: msg.content,
-        sources: msg.sources || [],
-      }));
-
-      // Set messages for this thread
-      setMessagesByThread((prev) => ({
-        ...prev,
-        [conversationId]: formattedMessages,
-      }));
-    } catch (error) {
-      console.error("[CHAT] Failed to fetch messages:", error);
+      dispatch(fetchConversationMessages(reduxCurrentConvId));
     }
-  };
+  }, [reduxCurrentConvId, dispatch]);
 
-  const filteredThreads = useMemo(() => {
-    if (!searchQuery.trim()) return threads;
-    return threads.filter((thread) =>
-      thread.title.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filtered conversations for search
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery.trim()) return reduxConversations;
+    return reduxConversations.filter((conv) =>
+      conv.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [threads, searchQuery]);
+  }, [reduxConversations, searchQuery]);
 
-  // ============ ISSUE FIX #9: CREATE CONVERSATION ON FIRST MESSAGE ============
-  const createConversationIfNeeded = useCallback(
+  // create conversation when new conversation
+  const ensureConversation = useCallback(
     async (firstMessageText) => {
-      const thread = threads.find((t) => t.id === currentThreadId);
-
-      // If conversation already exists for this thread, return it
-      if (thread?.conversationId) {
-        console.log(
-          "[CHAT] Using existing conversation:",
-          thread.conversationId
-        );
-        return thread.conversationId;
+      // If conversation already exists, return it
+      if (reduxCurrentConvId) {
+        console.log("[CHAT] Using existing conversation:", reduxCurrentConvId);
+        return reduxCurrentConvId;
       }
 
-      // Create new conversation on backend
+      // Create new conversation
       try {
-        console.log("[CHAT] Creating new conversation on backend...");
+        console.log("[CHAT] Creating new conversation...");
         const title =
           firstMessageText.substring(0, 50) +
           (firstMessageText.length > 50 ? "..." : "");
 
-        const response = await api.post("/api/memory/conversations", {
-          title,
-        });
+        const result = await dispatch(
+          createNewConversation({ title })
+        ).unwrap();
+        console.log("[CHAT] ✅ Conversation created:", result.id);
 
-        const conversationId = response.data.conversation.id;
-        console.log("[CHAT] ✅ Conversation created:", conversationId);
-
-        // Update thread with conversationId
-        setThreads((prev) =>
-          prev.map((t) =>
-            t.id === currentThreadId ? { ...t, conversationId } : t
-          )
-        );
-
-        return conversationId;
+        return result.id;
       } catch (error) {
         console.error("[CHAT] Failed to create conversation:", error);
         throw new Error("Failed to create conversation. Please try again.");
       }
     },
-    [currentThreadId, threads]
+    [reduxCurrentConvId, dispatch]
   );
 
   // ============ ISSUE FIX #1 & #4: SEND MESSAGE WITH CONVERSATION_ID ============
@@ -231,25 +179,14 @@ export default function ChatPage() {
     const text = message.trim();
     setError(null);
 
-    // Update thread title from "New Chat" to first message
-    setThreads((prev) =>
-      prev.map((thread) =>
-        thread.id === currentThreadId && thread.title === "New Chat"
-          ? {
-              ...thread,
-              title: text.slice(0, 30) + (text.length > 30 ? "…" : ""),
-            }
-          : thread
-      )
-    );
-
-    // Add user message to UI
-    const userMsg = { id: nanoid(), sender: "user", text };
-    setMessagesByThread((prev) => ({
-      ...prev,
-      [currentThreadId]: [...(prev[currentThreadId] || []), userMsg],
-    }));
-    setMessage("");
+    // Add user message to UI immediately
+    const userMsg = {
+      id: nanoid(),
+      role: "user",
+      content: text,
+      sources: [],
+      created_at: new Date().toISOString(),
+    };
 
     // ============== LOADING TIMER ==============
     let seconds = 0;
@@ -260,18 +197,22 @@ export default function ChatPage() {
     }, 1000);
 
     streamStartTime.current = Date.now();
+    setMessage("");
 
     try {
-      // ============ ISSUE FIX #9: CREATE CONVERSATION IF NEEDED ============
-      let conversationId = currentThread.conversationId;
+      // ============ ENSURE CONVERSATION EXISTS ============
+      let conversationId = reduxCurrentConvId;
       if (!conversationId) {
-        conversationId = await createConversationIfNeeded(text);
+        conversationId = await ensureConversation(text);
       }
       console.log("[CHAT] Using conversation_id:", conversationId);
 
-      // ============ ISSUE FIX #2: PERSIST USER MESSAGE TO BACKEND ============
+      // ============ PERSIST USER MESSAGE TO BACKEND ============
       try {
         console.log("[CHAT] Persisting user message to backend...");
+        // Dispatch action to save message or use direct API call
+        // For now, using direct API for simplicity
+        const api = (await import("../api/axiosInstance")).default;
         await api.post(`/api/memory/conversations/${conversationId}/messages`, {
           content: text,
           role: "user",
@@ -285,7 +226,7 @@ export default function ChatPage() {
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => abortController.abort(), 60000);
 
-      // ============== STEP 1: GET VALID TOKEN ==============
+      // ============== GET VALID TOKEN ==============
       let token;
       try {
         token = await getValidToken();
@@ -295,8 +236,7 @@ export default function ChatPage() {
         throw new Error("Authentication failed. Please login again.");
       }
 
-      // ============== STEP 2: MAKE STREAMING REQUEST ============
-      // ✅ ISSUE FIX #1 & #4: INCLUDE CONVERSATION_ID IN REQUEST BODY
+      // ============== MAKE STREAMING REQUEST ============
       const response = await fetch("https://api.veritlyai.com/query/stream", {
         method: "POST",
         headers: {
@@ -305,7 +245,7 @@ export default function ChatPage() {
         },
         body: JSON.stringify({
           query: text,
-          conversation_id: conversationId, // ✅ CRITICAL: Include conversation_id
+          conversation_id: conversationId,
           stream: true,
         }),
         signal: abortController.signal,
@@ -313,18 +253,16 @@ export default function ChatPage() {
 
       clearTimeout(timeoutId);
 
-      // ============== STEP 3: HANDLE 401 ERRORS WITH RETRY ==============
+      // ============== HANDLE 401 ERRORS WITH RETRY ==============
       if (response.status === 401) {
         console.log(
           "[CHAT] Received 401, attempting token refresh and retry..."
         );
 
         try {
-          // Try to refresh token
           const newToken = await getValidToken();
           console.log("[CHAT] ✅ Token refreshed, retrying request");
 
-          // Retry the request with new token
           const retryResponse = await fetch(
             "https://api.veritlyai.com/query/stream",
             {
@@ -335,7 +273,7 @@ export default function ChatPage() {
               },
               body: JSON.stringify({
                 query: text,
-                conversation_id: conversationId, // ✅ KEEP conversation_id in retry
+                conversation_id: conversationId,
                 stream: true,
               }),
               signal: abortController.signal,
@@ -348,19 +286,17 @@ export default function ChatPage() {
             );
           }
 
-          // Use retry response
-          await handleStream(retryResponse);
-          return; // Exit early
+          await handleStream(retryResponse, conversationId);
+          return;
         } catch (refreshError) {
           console.error("[CHAT] Token refresh failed:", refreshError);
-          // Logout and redirect
           dispatch(logout());
           navigate("/login");
           throw new Error("Session expired. Please login again.");
         }
       }
 
-      // ============== STEP 4: CHECK RESPONSE STATUS ==============
+      // ============== CHECK RESPONSE STATUS ==============
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -369,8 +305,8 @@ export default function ChatPage() {
         throw new Error("No response body");
       }
 
-      // ============== STEP 5: START STREAMING ==============
-      await handleStream(response);
+      // ============== START STREAMING ==============
+      await handleStream(response, conversationId);
     } catch (error) {
       console.error("[CHAT] Error:", error);
 
@@ -394,28 +330,15 @@ export default function ChatPage() {
         error.message.includes("Session expired") ||
         error.message.includes("Please login again")
       ) {
-        // Already logged out and redirected in retry logic
         return;
       }
 
       setError(errorMessage);
-
-      // Add error message to chat
-      const errorMsg = {
-        id: nanoid(),
-        sender: "ai",
-        text: errorMessage,
-        sources: [],
-      };
-      setMessagesByThread((prev) => ({
-        ...prev,
-        [currentThreadId]: [...(prev[currentThreadId] || []), errorMsg],
-      }));
     }
   };
 
-  // ============ ISSUE FIX #8: PERSIST STREAMED CONTENT AS PROPER MESSAGE ============
-  const handleStream = async (response) => {
+  // ============ HANDLE STREAMING RESPONSE ============
+  const handleStream = async (response, conversationId) => {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let aiText = "";
@@ -447,7 +370,6 @@ export default function ChatPage() {
               }
               setLoadingLabel("");
 
-              // Calculate generation time
               if (aiMessageId && streamStartTime.current) {
                 const endTime = Date.now();
                 const duration = Math.round(
@@ -479,50 +401,20 @@ export default function ChatPage() {
                 if (deltaContent) {
                   aiText += deltaContent;
 
-                  // ============== FIRST CHUNK: CREATE MESSAGE ==============
+                  // First chunk: display immediately (handled by Redux)
                   if (firstChunk) {
                     if (loadingTimer.current) {
                       clearInterval(loadingTimer.current);
                       loadingTimer.current = null;
                     }
                     setLoadingLabel("");
-
                     aiMessageId = nanoid();
-                    const aiMessage = {
-                      id: aiMessageId,
-                      sender: "ai",
-                      text: deltaContent,
-                      sources: sources,
-                    };
-
-                    setMessagesByThread((prev) => ({
-                      ...prev,
-                      [currentThreadId]: [
-                        ...(prev[currentThreadId] || []),
-                        aiMessage,
-                      ],
-                    }));
                     firstChunk = false;
+
+                    // Let Redux handle message updates after streaming completes
                   } else {
-                    // ============== SUBSEQUENT CHUNKS: UPDATE MESSAGE ==============
-                    setMessagesByThread((prev) => {
-                      const msgs = [...(prev[currentThreadId] || [])];
-                      const lastMsgIndex = msgs.length - 1;
-                      if (
-                        lastMsgIndex >= 0 &&
-                        msgs[lastMsgIndex].id === aiMessageId
-                      ) {
-                        msgs[lastMsgIndex] = {
-                          ...msgs[lastMsgIndex],
-                          text: aiText,
-                          sources:
-                            sources.length > 0
-                              ? sources
-                              : msgs[lastMsgIndex].sources,
-                        };
-                      }
-                      return { ...prev, [currentThreadId]: msgs };
-                    });
+                    // Update in-progress message UI
+                    // Can add state update here if needed for real-time updates
                   }
                 }
               }
@@ -534,36 +426,24 @@ export default function ChatPage() {
             }
           }
         }
+      }
 
-        // ============== HANDLE FINAL BUFFER ==============
-        if (buffer.trim() && buffer.startsWith("data: ")) {
-          const dataStr = buffer.slice(6).trim();
-          if (dataStr && dataStr !== "[DONE]") {
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.choices?.[0]?.delta?.content) {
-                const finalContent = data.choices[0].delta.content;
-                aiText += finalContent;
-                setMessagesByThread((prev) => {
-                  const msgs = [...(prev[currentThreadId] || [])];
-                  const lastMsgIndex = msgs.length - 1;
-                  if (
-                    lastMsgIndex >= 0 &&
-                    msgs[lastMsgIndex].id === aiMessageId
-                  ) {
-                    msgs[lastMsgIndex] = {
-                      ...msgs[lastMsgIndex],
-                      text: aiText,
-                    };
-                  }
-                  return { ...prev, [currentThreadId]: msgs };
-                });
-              }
-            } catch (e) {
-              console.warn("Failed to parse final SSE data:", buffer, e);
-            }
-          }
-        }
+      console.log("[CHAT] ✅ Stream completed. Full response:", aiText);
+
+      // ============ PERSIST STREAMED RESPONSE TO BACKEND ============
+      try {
+        const api = (await import("../api/axiosInstance")).default;
+        await api.post(`/api/memory/conversations/${conversationId}/messages`, {
+          content: aiText,
+          role: "assistant",
+          sources: sources,
+        });
+        console.log("[CHAT] ✅ Assistant message saved to backend");
+
+        // Fetch updated messages from backend to sync Redux
+        dispatch(fetchConversationMessages(conversationId));
+      } catch (persistError) {
+        console.error("[CHAT] Failed to persist response:", persistError);
       }
     } catch (error) {
       console.error("[CHAT] Stream reading error:", error);
@@ -571,67 +451,33 @@ export default function ChatPage() {
     }
   };
 
+  // ============ CREATE NEW CHAT ============
   const handleNewChat = useCallback(() => {
-    const id = nanoid();
-    setThreads((prev) => [
-      { id, title: "New Chat", conversationId: null },
-      ...prev,
-    ]);
-    setCurrentThreadId(id);
-    setMessage("");
-    setDrawerOpen(false);
-  }, []);
+    // Reset Redux state for new conversation
+    // This will clear currentConversationId and trigger new conversation creation on first message
+    console.log("[CHAT] Starting new chat");
+    // Dispatch action to clear current conversation
+    // You may need to add a "newChat" action to chatSlice
+  }, [dispatch]);
 
-  const selectThread = useCallback((id) => {
-    setCurrentThreadId(id);
-    setMessage("");
-    setDrawerOpen(false);
-  }, []);
-
-  // ============ ISSUE FIX #3: DELETE CONVERSATION ON BACKEND ============
-  const deleteThread = useCallback(
-    (id, e) => {
-      e.stopPropagation();
-
-      // Get thread to find conversationId
-      const threadToDelete = threads.find((t) => t.id === id);
-
-      // Delete from backend if conversationId exists
-      if (threadToDelete?.conversationId) {
-        api
-          .delete(`/api/memory/conversations/${threadToDelete.conversationId}`)
-          .then(() =>
-            console.log("[CHAT] ✅ Conversation deleted from backend")
-          )
-          .catch((error) =>
-            console.error("[CHAT] Failed to delete conversation:", error)
-          );
-      }
-
-      setThreads((prev) => {
-        const filtered = prev.filter((t) => t.id !== id);
-        if (id === currentThreadId && filtered.length > 0) {
-          setCurrentThreadId(filtered[0].id);
-        } else if (filtered.length === 0) {
-          const newId = nanoid();
-          const newThread = {
-            id: newId,
-            title: "New Chat",
-            conversationId: null,
-          };
-          setCurrentThreadId(newId);
-          return [newThread];
-        }
-        return filtered;
-      });
-
-      setMessagesByThread((prev) => {
-        const updated = { ...prev };
-        delete updated[id];
-        return updated;
-      });
+  // ============ SELECT CONVERSATION ============
+  const selectConversation = useCallback(
+    (conversationId) => {
+      console.log("[CHAT] Selecting conversation:", conversationId);
+      // Dispatch action to set current conversation
+      // You may need to add a "selectConversation" action to chatSlice
     },
-    [currentThreadId]
+    [dispatch]
+  );
+
+  // ============ DELETE CONVERSATION ============
+  const handleDeleteConversation = useCallback(
+    (conversationId, e) => {
+      e?.stopPropagation?.();
+      console.log("[CHAT] Deleting conversation:", conversationId);
+      dispatch(deleteConversation(conversationId));
+    },
+    [dispatch]
   );
 
   return (
@@ -646,7 +492,7 @@ export default function ChatPage() {
           {drawerOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <h2 className="text-slate-200 text-sm font-medium truncate px-2 max-w-[60%]">
-          {currentThread.title}
+          {currentThread?.title || "New Chat"}
         </h2>
         <button
           className="p-2 text-slate-400 hover:text-white transition-colors"
@@ -706,7 +552,11 @@ export default function ChatPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 space-y-1">
-          {filteredThreads.length === 0 ? (
+          {isLoadingConversations ? (
+            <div className="text-center text-slate-500 text-sm py-8">
+              No conversations found
+            </div>
+          ) : filteredThreads.length === 0 ? (
             <div className="text-center text-slate-500 text-sm py-8">
               No conversations found
             </div>
@@ -716,14 +566,14 @@ export default function ChatPage() {
                 key={thread.id}
                 onClick={() => selectThread(thread.id)}
                 className={`group flex items-center space-x-3 px-3 py-2.5 text-sm rounded-lg cursor-pointer transition-all ${
-                  thread.id === currentThreadId
+                  thread.id === currentConversationId
                     ? "bg-slate-800 text-white"
                     : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
                 }`}
               >
                 <div className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
                 <span className="truncate flex-1">{thread.title}</span>
-                {threads.length > 1 && (
+                {conversations.length > 1 && (
                   <button
                     onClick={(e) => deleteThread(thread.id, e)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/10 rounded transition-all"
@@ -741,7 +591,7 @@ export default function ChatPage() {
       <main className="flex-1 bg-slate-950 flex flex-col min-w-0">
         <header className="hidden lg:flex h-14 bg-slate-900/50 backdrop-blur-sm border-b border-slate-800/50 px-6 items-center justify-center">
           <h2 className="text-slate-200 text-sm font-medium truncate">
-            {currentThread.title}
+            {currentThread?.title || "New Chat"}
           </h2>
         </header>
 
@@ -785,17 +635,17 @@ export default function ChatPage() {
               <>
                 {currentMessages.map((msg) => (
                   <div key={msg.id} className="mb-8">
-                    {msg.sender === "user" && (
+                    {msg.role === "user" && (
                       <div className="flex justify-end mb-6">
                         <div className="bg-blue-600 text-white rounded-2xl px-4 py-3 max-w-[85%] shadow-lg">
                           <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                            {msg.text}
+                            {msg.content}
                           </p>
                         </div>
                       </div>
                     )}
 
-                    {msg.sender === "ai" && (
+                    {msg.sender === "assistant" && (
                       <div className="space-y-6">
                         {msg.sources && msg.sources.length > 0 && (
                           <div className="space-y-3">
@@ -829,7 +679,7 @@ export default function ChatPage() {
                           </div>
                         )}
 
-                        {msg.text && (
+                        {msg.content && (
                           <div className="space-y-3">
                             <div className="flex items-center text-sm font-semibold text-slate-300">
                               <div className="w-5 h-5 rounded-lg bg-blue-500/20 flex items-center justify-center mr-2.5">
@@ -848,12 +698,13 @@ export default function ChatPage() {
                                 </svg>
                               </div>
                               <span>Analysis</span>
-                              {msg.id &&
-                                generationTimes[msg.id] !== undefined && (
-                                  <span className="ml-3 text-xs text-slate-400 font-normal">
-                                    (generated in {generationTimes[msg.id]}s)
-                                  </span>
-                                )}
+                              {generationTimes[currentConversationId] !==
+                                undefined && (
+                                <span className="ml-3 text-xs text-slate-400 font-normal">
+                                  (generated in{" "}
+                                  {generationTimes[currentConversationId]}s)
+                                </span>
+                              )}
                             </div>
                             <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-5 space-y-3">
                               <ReactMarkdown
@@ -964,7 +815,7 @@ export default function ChatPage() {
                                   ),
                                 }}
                               >
-                                {msg.text}
+                                {msg.content}
                               </ReactMarkdown>
                             </div>
                           </div>

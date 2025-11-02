@@ -10,7 +10,7 @@ export const fetchConversations = createAsyncThunk(
       console.log('[CHAT] Fetching conversations...');
       const response = await api.get('api/memory/conversations');
       console.log('[CHAT] ✅ Conversations fetched:', response.data);
-      return response.data.conversations || [];
+      return response.data || [];
     } catch (error) {
       console.error('[CHAT] ❌ Error fetching conversations:', error);
       return rejectWithValue(error.message || 'Failed to fetch conversations');
@@ -27,7 +27,7 @@ export const fetchConversationMessages = createAsyncThunk(
       console.log('[CHAT] ✅ Messages fetched:', response.data);
       return {
         conversationId,
-        messages: response.data.messages || [],
+        messages: response.data || [],
       };
     } catch (error) {
       console.error('[CHAT] ❌ Error fetching messages:', error);
@@ -43,7 +43,7 @@ export const createNewConversation = createAsyncThunk(
       console.log('[CHAT] Creating new conversation:', title);
       const response = await api.post('api/memory/conversations', { title });
       console.log('[CHAT] ✅ Conversation created:', response.data);
-      return response.data.conversation;
+      return response.data;
     } catch (error) {
       console.error('[CHAT] ❌ Error creating conversation:', error);
       return rejectWithValue(error.message || 'Failed to create conversation');
@@ -67,7 +67,7 @@ export const sendQueryMessage = createAsyncThunk(
       console.log('[CHAT] ✅ Query sent successfully:', response.data);
       return {
         conversationId,
-        message: response.data.message
+        message: response.data
       };
     } catch (error) {
       console.error('[CHAT] ❌ Error sending query:', error);
@@ -163,14 +163,14 @@ const chatSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchConversations.fulfilled, (state, action) => {
-        state.isLoadingMessages = false;
-        const { conversationId, messages } = action.payload;
-        state.currentConversationId = conversationId;
-        state.currentMessages = messages;
+        state.isLoadingConversations = false;
+        state.conversations = action.payload;
+        console.log('[CHAT] Conversations set:', action.payload.length, 'conversations');
       })
       .addCase(fetchConversations.rejected, (state, action) => {
         state.isLoadingConversations = false;
         state.error = action.payload;
+        console.error('[CHAT] Failed to load conversations:', action.payload);
       });
 
     // Fetch Messages
@@ -180,10 +180,12 @@ const chatSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchConversationMessages.fulfilled, (state, action) => {
-        state.isLoadingConversations = false;
-        state.conversations.unshift(action.payload);
-        state.currentConversationId = action.payload.id;
-        state.currentMessages = [];
+        state.isLoadingMessages = false;
+        // ✅ FIXED: Properly destructure and set current messages
+        const { conversationId, messages } = action.payload;
+        state.currentConversationId = conversationId;
+        state.currentMessages = messages;
+        console.log('[CHAT] Messages loaded:', messages.length, 'messages');
       })
       .addCase(fetchConversationMessages.rejected, (state, action) => {
         state.isLoadingMessages = false;
@@ -215,9 +217,11 @@ const chatSlice = createSlice({
       })
       .addCase(createNewConversation.fulfilled, (state, action) => {
         state.isLoadingConversations = false;
+        // ✅ FIXED: Add new conversation to the list
         state.conversations.unshift(action.payload);
         state.currentConversationId = action.payload.id;
         state.currentMessages = [];
+        console.log('[CHAT] New conversation created');
       })
       .addCase(createNewConversation.rejected, (state, action) => {
         state.isLoadingConversations = false;
@@ -232,16 +236,17 @@ const chatSlice = createSlice({
       .addCase(deleteConversation.fulfilled, (state, action) => {
         state.isLoadingConversations = false;
         const deletedId = action.payload;
+        // ✅ FIXED: Remove deleted conversation from list
         state.conversations = state.conversations.filter(
           (conv) => conv.id !== deletedId
         );
         
-        // If deleted conversation was selected, clear it
         if (state.currentConversationId === deletedId) {
           state.currentConversationId = null;
           state.currentMessages = [];
           state.streamingContent = '';
         }
+        console.log('[CHAT] Conversation deleted');
       })
       .addCase(deleteConversation.rejected, (state, action) => {
         state.isLoadingConversations = false;
