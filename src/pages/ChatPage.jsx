@@ -20,6 +20,8 @@ import {
   fetchConversationMessages,
   createNewConversation,
   deleteConversation,
+  selectConversation,
+  newChat,
 } from "../store/slices/chatSlice";
 
 
@@ -81,6 +83,7 @@ export default function ChatPage() {
   const currentConversation = reduxConversations.find(
     (conv) => conv.id === reduxCurrentConvId
   );
+  const currentMessages = reduxCurrentMessages;
   const isSendDisabled = message.trim().length === 0;
   const isLoadingConversations = reduxIsLoading;
 
@@ -108,7 +111,7 @@ export default function ChatPage() {
   // scroll to bottom on new messages
   useEffect(() => {
     scrollToBottom(false);
-  }, [currentThreadId, scrollToBottom]);
+  }, [reduxCurrentConvId, scrollToBottom]);
 
   // auto clear errors
   useEffect(() => {
@@ -173,7 +176,7 @@ export default function ChatPage() {
     [reduxCurrentConvId, dispatch]
   );
 
-  // ============ ISSUE FIX #1 & #4: SEND MESSAGE WITH CONVERSATION_ID ============
+  // ============ SEND MESSAGE WITH CONVERSATION_ID ============
   const handleSend = async () => {
     if (isSendDisabled) return;
     const text = message.trim();
@@ -210,9 +213,7 @@ export default function ChatPage() {
       // ============ PERSIST USER MESSAGE TO BACKEND ============
       try {
         console.log("[CHAT] Persisting user message to backend...");
-        // Dispatch action to save message or use direct API call
-        // For now, using direct API for simplicity
-        const api = (await import("../api/axiosInstance")).default;
+
         await api.post(`/api/memory/conversations/${conversationId}/messages`, {
           content: text,
           role: "user",
@@ -470,6 +471,16 @@ export default function ChatPage() {
     [dispatch]
   );
 
+  // ============ SELECT CONVERSATION ============
+  const handleSelectConversation = useCallback(
+    (conversationId) => {
+      console.log("[CHAT] Selecting conversation:", conversationId);
+      // ✅ FIXED: Actually dispatch the selectConversation action
+      dispatch(selectConversation(conversationId));
+    },
+    [dispatch]
+  );
+
   // ============ DELETE CONVERSATION ============
   const handleDeleteConversation = useCallback(
     (conversationId, e) => {
@@ -492,7 +503,7 @@ export default function ChatPage() {
           {drawerOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <h2 className="text-slate-200 text-sm font-medium truncate px-2 max-w-[60%]">
-          {currentThread?.title || "New Chat"}
+          {currentConversation?.title || "New Chat"}
         </h2>
         <button
           className="p-2 text-slate-400 hover:text-white transition-colors"
@@ -561,21 +572,21 @@ export default function ChatPage() {
               No conversations found
             </div>
           ) : (
-            filteredThreads.map((thread) => (
+            filteredConversations.map((conv) => (
               <div
-                key={thread.id}
-                onClick={() => selectThread(thread.id)}
+                key={conv.id}
+                onClick={() => handleSelectConversation(thread.id)}
                 className={`group flex items-center space-x-3 px-3 py-2.5 text-sm rounded-lg cursor-pointer transition-all ${
-                  thread.id === currentConversationId
+                  conv.id === reduxCurrentConvId
                     ? "bg-slate-800 text-white"
                     : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
                 }`}
               >
                 <div className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
-                <span className="truncate flex-1">{thread.title}</span>
-                {conversations.length > 1 && (
+                <span className="truncate flex-1">{conv.title}</span>
+                {reduxConversations.length > 1 && (
                   <button
-                    onClick={(e) => deleteThread(thread.id, e)}
+                    onClick={(e) => handleDeleteConversation(thread.id, e)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/10 rounded transition-all"
                   >
                     <Trash2 size={14} className="text-red-400" />
@@ -591,7 +602,7 @@ export default function ChatPage() {
       <main className="flex-1 bg-slate-950 flex flex-col min-w-0">
         <header className="hidden lg:flex h-14 bg-slate-900/50 backdrop-blur-sm border-b border-slate-800/50 px-6 items-center justify-center">
           <h2 className="text-slate-200 text-sm font-medium truncate">
-            {currentThread?.title || "New Chat"}
+            {currentConversation?.title || "New Chat"}
           </h2>
         </header>
 
@@ -645,7 +656,7 @@ export default function ChatPage() {
                       </div>
                     )}
 
-                    {msg.sender === "assistant" && (
+                    {msg.role === "assistant" && (
                       <div className="space-y-6">
                         {msg.sources && msg.sources.length > 0 && (
                           <div className="space-y-3">
@@ -702,7 +713,7 @@ export default function ChatPage() {
                                 undefined && (
                                 <span className="ml-3 text-xs text-slate-400 font-normal">
                                   (generated in{" "}
-                                  {generationTimes[currentConversationId]}s)
+                                  {generationTimes[reduxCurrentConvId]}s)
                                 </span>
                               )}
                             </div>
