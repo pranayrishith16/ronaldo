@@ -26,32 +26,27 @@ import {
 
 
 // Memoized Source Card Component
-const SourceCard = React.memo(({ source, index }) => {
-  if (!source) return null;
+const SourceCard = React.memo(({ sourceId, index }) => {
+  if (!sourceId) return null;
 
-  const sourceName = 
-    typeof source.source === 'string'
-    ? source.source.split("/").pop() 
-    : source.source_name || "Unknown Source";
+  const displayId =
+    typeof sourceId === "string" ? sourceId.substring(0, 12) : "Unknown";
 
   return (
-  <div className="group bg-slate-800/40 hover:bg-slate-800/60 transition-all duration-200 border border-slate-700/50 hover:border-slate-600/50 rounded-lg p-3 text-sm shadow-sm hover:shadow-md">
-    <div className="flex items-center justify-between mb-2">
-      <span className="text-blue-400 font-medium text-xs tracking-wide">
-        SOURCE {index + 1}
-      </span>
-      <span className="text-slate-500 text-xs">Page ${source.page_number}</span>
-    </div>
-    <div className="text-slate-200 text-sm font-medium truncate mb-1">
-      {source.source.split("/").pop()}
-    </div>
-    {source.content && (
-      <p className="text-slate-400 text-xs mt-2 line-clamp-2 leading-relaxed">
-        {source.content.substring(0, 100)}...
+    <div className="group bg-slate-800/40 hover:bg-slate-800/60 transition-all duration-200 border border-slate-700/50 hover:border-slate-600/50 rounded-lg p-3 text-sm shadow-sm hover:shadow-md">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-blue-400 font-medium text-xs tracking-wide">
+          SOURCE {index + 1}
+        </span>
+      </div>
+      <div className="text-slate-200 text-sm font-medium truncate mb-1 font-mono">
+        {displayId}...
+      </div>
+      <p className="text-slate-400 text-xs mt-2 leading-relaxed">
+        Document ID: {sourceId}
       </p>
-    )}
-  </div>
-  )});
+    </div>
+  );});
 
 SourceCard.displayName = "SourceCard";
 
@@ -689,8 +684,8 @@ export default function ChatPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                               {msg.sources.map((source, idx) => (
                                 <SourceCard
-                                  key={idx}
-                                  source={source}
+                                  key={sourceId}
+                                  sourceId={sourceId}
                                   index={idx}
                                 />
                               ))}
