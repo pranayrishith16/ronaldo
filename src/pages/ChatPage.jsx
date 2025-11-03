@@ -709,7 +709,7 @@ export default function ChatPage() {
                                 </svg>
                               </div>
                               <span>Analysis</span>
-                              {generationTimes[currentConversationId] !==
+                              {generationTimes[reduxCurrentConvId] !==
                                 undefined && (
                                 <span className="ml-3 text-xs text-slate-400 font-normal">
                                   (generated in{" "}
