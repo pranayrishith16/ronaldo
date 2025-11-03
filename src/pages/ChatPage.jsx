@@ -26,13 +26,21 @@ import {
 
 
 // Memoized Source Card Component
-const SourceCard = React.memo(({ source, index }) => (
+const SourceCard = React.memo(({ source, index }) => {
+  if (!source) return null;
+
+  const sourceName = 
+    typeof source.source === 'string'
+    ? source.source.split("/").pop() 
+    : source.source_name || "Unknown Source";
+
+  return (
   <div className="group bg-slate-800/40 hover:bg-slate-800/60 transition-all duration-200 border border-slate-700/50 hover:border-slate-600/50 rounded-lg p-3 text-sm shadow-sm hover:shadow-md">
     <div className="flex items-center justify-between mb-2">
       <span className="text-blue-400 font-medium text-xs tracking-wide">
         SOURCE {index + 1}
       </span>
-      <span className="text-slate-500 text-xs">Page {source.page_number}</span>
+      <span className="text-slate-500 text-xs">Page ${source.page_number}</span>
     </div>
     <div className="text-slate-200 text-sm font-medium truncate mb-1">
       {source.source.split("/").pop()}
@@ -43,7 +51,7 @@ const SourceCard = React.memo(({ source, index }) => (
       </p>
     )}
   </div>
-));
+  )});
 
 SourceCard.displayName = "SourceCard";
 
