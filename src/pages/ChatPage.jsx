@@ -578,7 +578,7 @@ export default function ChatPage() {
             filteredConversations.map((conv) => (
               <div
                 key={conv.id}
-                onClick={() => handleSelectConversation(thread.id)}
+                onClick={() => handleSelectConversation(conv.id)}
                 className={`group flex items-center space-x-3 px-3 py-2.5 text-sm rounded-lg cursor-pointer transition-all ${
                   conv.id === reduxCurrentConvId
                     ? "bg-slate-800 text-white"
@@ -589,7 +589,7 @@ export default function ChatPage() {
                 <span className="truncate flex-1">{conv.title}</span>
                 {reduxConversations.length > 1 && (
                   <button
-                    onClick={(e) => handleDeleteConversation(thread.id, e)}
+                    onClick={(e) => handleDeleteConversation(conv.id, e)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/10 rounded transition-all"
                   >
                     <Trash2 size={14} className="text-red-400" />
