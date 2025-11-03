@@ -479,7 +479,7 @@ export default function ChatPage() {
     (conversationId) => {
       console.log("[CHAT] Selecting conversation:", conversationId);
       // ✅ FIXED: Actually dispatch the selectConversation action
-      dispatch(selectConversation(conversationId));
+      dispatch(fetchConversationMessages(conversationId));
     },
     [dispatch]
   );
