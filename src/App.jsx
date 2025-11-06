@@ -46,7 +46,9 @@ export default function App() {
   const { isLoggedIn, isAuthChecked } = useSelector((state) => state.auth);
   const [showLoading, setShowLoading] = useState(true);
 
-  const isApiPath = window.location.pathname.startsWith("/api/");
+  const isApiPath =
+    window.location.pathname.startsWith("/api") ||
+    window.location.pathname.startsWith("/docs");
 
   if (isApiPath) {
     // Let the backend handle API routes - don't render React
