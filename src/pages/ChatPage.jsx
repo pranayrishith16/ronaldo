@@ -15,6 +15,14 @@ import { getValidToken } from "../utils/streamingHelper";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../store/slices/authSlice";
+import { ExternalLink, FileText } from "lucide-react";
+import PdfViewerModal from "../components/layout/PdfViewerModal";
+import {
+  fetchDocumentUrl,
+  clearDocumentUrl,
+  setFileName,
+  closeViewer
+} from "../store/slices/documentSlice";
 import {
   fetchConversations,
   fetchConversationMessages,
@@ -27,28 +35,141 @@ import {
 
 // Memoized Source Card Component
 const SourceCard = React.memo(({ sourceId, index }) => {
+  console.log(sourceId)
   if (!sourceId) return null;
 
-  const displayId =
-    typeof sourceId === "string" ? sourceId.substring(0, 12) : "Unknown";
+  const dispatch = useDispatch(); // ADD THIS LINE
+  const { sources } = useSelector((state) => state.chat);
+
+  // Handle both string IDs and object sources from backend
+  const isObject = typeof sourceId === "object" && sourceId !== null;
+  const uniqueId = isObject ? sourceId.id : sourceId;
+  const displayId = isObject
+    ? sourceId.id?.substring(0, 12) || "Unknown"
+    : typeof sourceId === "string"
+    ? sourceId.substring(0, 12)
+    : "Unknown";
+
+  // Extract document path from metadata.source (e.g., "case_rcpdfs/USA_v._Hernandez-Fraire.pdf")
+  const documentPath = isObject ? sourceId.metadata?.source : null;
+  const caseName = isObject ? sourceId.metadata?.case_name : null;
+  const courtName = isObject ? sourceId.metadata?.court_name : null;
+  const docketNumber = isObject ? sourceId.metadata?.docket_number : null;
+  const disposition = isObject ? sourceId.metadata?.disposition : null;
+
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  const token = useSelector((state) => state.auth.accessToken);
+
+  const handleCloseViewer = () => {
+    dispatch(closeViewer());
+  };
+
+  const handleOpenDocument = async () => {
+    try {
+      const data = sourceId;
+      if (!data) {
+        console.warn("No source data found");
+        return;
+      }
+
+      // Extract the blob path from your source data
+      // THIS IS IMPORTANT: Check what field contains your file path
+      const documentPath = data.file_path || data.blob_path || data.source_id || data.metadata?.source;
+
+      if (!documentPath) {
+        console.warn("No file path found in source data");
+        return;
+      }
+
+      console.log("[SOURCE-CARD] Opening document:", documentPath);
+
+      // Build the URL to your backend endpoint
+      const pdfUrl = `/api/documents/view/${documentPath}`;
+
+      // Extract file name for display
+      const fileName =
+        data.file_name ||
+        data.name ||
+        data.metadata?.case_name ||
+        documentPath.split("/").pop() ||
+        "Document.pdf";
+
+      // Dispatch to Redux to open in modal
+      dispatch(fetchDocumentUrl(documentPath)); // Pass the raw path
+      dispatch(setFileName(fileName));
+
+      console.log("[SOURCE-CARD] Dispatched to viewer:", fileName);
+    } catch (error) {
+      console.error("[SOURCE-CARD] Error opening document:", error);
+      alert("Failed to open document");
+    }
+  };
+  
+
 
   return (
-    <div className="group bg-slate-800/40 hover:bg-slate-800/60 transition-all duration-200 border border-slate-700/50 hover:border-slate-600/50 rounded-lg p-3 text-sm shadow-sm hover:shadow-md">
+    <div
+      onClick={handleOpenDocument}
+      className={`group bg-slate-800/40 hover:bg-slate-800/60 transition-all duration-200 border border-slate-700/50 hover:border-blue-500/50 rounded-lg p-3 text-sm shadow-sm hover:shadow-md ${
+        documentPath ? "cursor-pointer" : "cursor-default"
+      }`}
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-blue-400 font-medium text-xs tracking-wide">
           SOURCE {index + 1}
         </span>
+        {documentPath && (
+          <ExternalLink
+            size={14}
+            className="text-slate-500 group-hover:text-blue-400 transition"
+          />
+        )}
       </div>
-      <div className="text-slate-200 text-sm font-medium truncate mb-1 font-mono">
-        {displayId}...
+
+      {/* Case Name */}
+      {caseName && (
+        <div className="text-slate-200 text-sm font-semibold truncate mb-1">
+          {caseName.replace(/_/g, " ")}
+        </div>
+      )}
+
+      {/* ID */}
+      <div className="text-slate-300 text-xs font-mono mb-2">
+        ID: {displayId}
       </div>
-      <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-        Document ID: {sourceId}
-      </p>
+
+      {/* Content Preview */}
+      {isObject && sourceId.content && (
+        <p className="text-slate-400 text-xs leading-relaxed line-clamp-2 mb-2">
+          {sourceId.content.substring(0, 120)}...
+        </p>
+      )}
+
+      {/* Court Info */}
+      {courtName && <p className="text-slate-500 text-xs mb-1">{courtName}</p>}
+
+      {/* Document Path */}
+      {documentPath && (
+        <p className="text-blue-400 text-xs mt-2 hover:text-blue-300 font-medium">
+          {isLoading ? "⏳ Loading..." : "📄 Click to view PDF"}
+        </p>
+      )}
+
+      {/* Metadata Info */}
+      {isObject && sourceId.metadata && (
+        <div className="text-slate-600 text-xs mt-2 space-y-1">
+          {docketNumber && <p>Docket: {docketNumber}</p>}
+          {disposition && <p>Disposition: {disposition}</p>}
+        </div>
+      )}
     </div>
-  );});
+  );
+});
 
 SourceCard.displayName = "SourceCard";
+
 
 export default function ChatPage() {
   useEffect(() => {
@@ -67,6 +188,14 @@ export default function ChatPage() {
     isLoadingConversations: reduxIsLoading,
     error: reduxError,
   } = useSelector((state) => state.chat);
+  const { isViewerOpen, documentUrl, fileName } = useSelector(
+    (state) => state.documents
+  );
+
+  const handleCloseViewer = () => {
+    dispatch(closeViewer());
+  };
+
 
   // Local State
   const [message, setMessage] = useState("");
@@ -682,13 +811,32 @@ export default function ChatPage() {
                               <span>Legal Sources</span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {msg.sources.map((sourceId, idx) => (
-                                <SourceCard
-                                  key={sourceId}
-                                  sourceId={sourceId}
-                                  index={idx}
-                                />
-                              ))}
+                              {msg.sources && msg.sources.length > 0 && (
+                                <div className="space-y-3">
+                                  <div className="flex items-center text-sm font-semibold text-slate-300 mb-3">
+                                    <FileText
+                                      size={14}
+                                      className="mr-2 text-blue-400"
+                                    />
+                                    <span>
+                                      Legal Sources ({msg.sources.length})
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {msg.sources.map((source, idx) => (
+                                      <SourceCard
+                                        key={
+                                          typeof source === "object"
+                                            ? source.id
+                                            : source
+                                        }
+                                        sourceId={source}
+                                        index={idx}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
@@ -913,6 +1061,7 @@ export default function ChatPage() {
           </div>
         </div>
       </main>
+      <PdfViewerModal />
     </div>
   );
 }

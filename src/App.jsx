@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Link, useNavigate, Navigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { checkAuth } from "./store/slices/authSlice";
+import { checkAuth,logout } from "./store/slices/authSlice";
 
 import HomePage from "@/pages/HomePage";
 import LoginPage from "@/pages/LoginPage";
@@ -45,6 +45,13 @@ export default function App() {
   const dispatch = useDispatch();
   const { isLoggedIn, isAuthChecked } = useSelector((state) => state.auth);
   const [showLoading, setShowLoading] = useState(true);
+
+  const isApiPath = window.location.pathname.startsWith("/api/");
+
+  if (isApiPath) {
+    // Let the backend handle API routes - don't render React
+    return null;
+  }
 
   useEffect(() => {
     console.log("[APP] App mounted, checking auth...");
