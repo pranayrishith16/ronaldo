@@ -12,7 +12,7 @@ import ReactMarkdown from "react-markdown";
 import api from "../api/axiosInstance";
 import { store } from "../store/store";
 import { getValidToken } from "../utils/streamingHelper";
-import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../store/slices/authSlice";
