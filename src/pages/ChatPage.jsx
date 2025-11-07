@@ -112,6 +112,14 @@ const SourceCard = React.memo(({ sourceId, index }) => {
   console.log(sourceId);
   if (!sourceId) return null;
 
+  const toTitleCase = (str) => {
+    return str
+      .replace(/_/g, " ")
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
+  };
+
   const dispatch = useDispatch();
   const { sources } = useSelector((state) => state.chat);
 
@@ -193,26 +201,29 @@ const SourceCard = React.memo(({ sourceId, index }) => {
           Source {index + 1}
         </span>
         {documentPath && (
-          <ExternalLink size={14} className="text-slate-500 group-hover:text-blue-400 transition" />
+          <ExternalLink
+            size={14}
+            className="text-slate-500 group-hover:text-blue-400 transition"
+          />
         )}
       </div>
 
       {/* Case Name - Bold & Prominent */}
       {caseName && (
-        <div className="text-slate-100 text-sm font-bold truncate mb-2 line-clamp-2">
-          {caseName.replace(/_/g, " ")}
+        <div className="text-slate-100 text-sm font-bold mb-2 line-clamp-3 break-words">
+          {toTitleCase(caseName)}
         </div>
       )}
 
       {/* ID - Small & Monospace */}
-      <div className="text-slate-400 text-xs font-mono mb-2">ID: {displayId}</div>
+      {/* <div className="text-slate-400 text-xs font-mono mb-2">ID: {displayId}</div> */}
 
       {/* Content Preview */}
-      {isObject && sourceId.content && (
+      {/* {isObject && sourceId.content && (
         <p className="text-slate-400 text-xs leading-relaxed line-clamp-2 mb-2 bg-slate-900/30 rounded p-2">
           "{sourceId.content.substring(0, 100)}..."
         </p>
-      )}
+      )} */}
 
       {/* Court Info */}
       {courtName && (
@@ -870,23 +881,6 @@ export default function ChatPage() {
                       <div className="space-y-6">
                         {msg.sources && msg.sources.length > 0 && (
                           <div className="space-y-3">
-                            <div className="flex items-center text-sm font-semibold text-slate-300">
-                              <div className="w-5 h-5 rounded-lg bg-blue-500/20 flex items-center justify-center mr-2.5">
-                                <svg
-                                  className="w-3 h-3 text-blue-400"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2.5}
-                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                                  />
-                                </svg>
-                              </div>
-                            </div>
                             {msg.sources && msg.sources.length > 0 && (
                               <div className="mt-6 mb-4">
                                 {/* Title */}
@@ -925,10 +919,14 @@ export default function ChatPage() {
                                   {/* Scrollable Content */}
                                   <div
                                     id={`sources-scroll-${msg.id}`}
-                                    className="flex gap-3 overflow-x-auto pb-2 px-8 scroll-smooth"
+                                    className="flex gap-3 overflow-x-auto pb-2 px-8 scroll-smooth relative"
                                     style={{
                                       scrollbarWidth: "thin",
                                       msOverflowStyle: "none",
+                                      maskImage:
+                                        "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
+                                      WebkitMaskImage:
+                                        "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
                                     }}
                                   >
                                     {msg.sources.map((source, idx) => (
