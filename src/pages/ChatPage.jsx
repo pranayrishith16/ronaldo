@@ -12,6 +12,7 @@ import ReactMarkdown from "react-markdown";
 import api from "../api/axiosInstance";
 import { store } from "../store/store";
 import { getValidToken } from "../utils/streamingHelper";
+import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../store/slices/authSlice";
@@ -32,13 +33,86 @@ import {
   newChat,
 } from "../store/slices/chatSlice";
 
+export const SourcesContainer = React.memo(
+  ({ sourcesList = [], title = "Legal Sources" }) => {
+    const scrollContainerRef = useRef(null);
+
+    const scroll = (direction) => {
+      if (scrollContainerRef.current) {
+        const scrollAmount = 350;
+        scrollContainerRef.current.scrollBy({
+          left: direction === "left" ? -scrollAmount : scrollAmount,
+          behavior: "smooth",
+        });
+      }
+    };
+
+    if (!sourcesList || sourcesList.length === 0) return null;
+
+    return (
+      <div className="mt-6 mb-6">
+        {/* Title */}
+        <h3 className="text-slate-300 font-semibold text-sm mb-3">
+          {title} ({sourcesList.length})
+        </h3>
+
+        {/* Scroll Container */}
+        <div className="relative group">
+          {/* Left Arrow - appears on hover */}
+          <button
+            onClick={() => scroll("left")}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-slate-900/90 hover:bg-slate-800 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft size={18} className="text-slate-300" />
+          </button>
+
+          {/* Horizontal Scrollable Content */}
+          <div
+            ref={scrollContainerRef}
+            className="flex gap-3 overflow-x-auto pb-2 px-8 scroll-smooth"
+            style={{
+              scrollBehavior: "smooth",
+              msOverflowStyle: "none",
+              scrollbarWidth: "thin",
+            }}
+          >
+            {sourcesList.map((source, index) => (
+              <SourceCard
+                key={source.id || index}
+                sourceId={source}
+                index={index}
+              />
+            ))}
+          </div>
+
+          {/* Right Arrow - appears on hover */}
+          <button
+            onClick={() => scroll("right")}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-slate-900/90 hover:bg-slate-800 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+            aria-label="Scroll right"
+          >
+            <ChevronRight size={18} className="text-slate-300" />
+          </button>
+        </div>
+
+        {/* Scroll Hint */}
+        <p className="text-xs text-slate-500 mt-2">
+          💡 Scroll horizontally to see more sources
+        </p>
+      </div>
+    );
+  }
+);
+
+SourcesContainer.displayName = "SourcesContainer";
 
 // Memoized Source Card Component
 const SourceCard = React.memo(({ sourceId, index }) => {
-  console.log(sourceId)
+  console.log(sourceId);
   if (!sourceId) return null;
 
-  const dispatch = useDispatch(); // ADD THIS LINE
+  const dispatch = useDispatch();
   const { sources } = useSelector((state) => state.chat);
 
   // Handle both string IDs and object sources from backend
@@ -75,7 +149,6 @@ const SourceCard = React.memo(({ sourceId, index }) => {
       }
 
       // Extract the blob path from your source data
-      // THIS IS IMPORTANT: Check what field contains your file path
       const documentPath = data.file_path || data.blob_path || data.source_id || data.metadata?.source;
 
       if (!documentPath) {
@@ -106,63 +179,68 @@ const SourceCard = React.memo(({ sourceId, index }) => {
       alert("Failed to open document");
     }
   };
-  
-
 
   return (
     <div
       onClick={handleOpenDocument}
-      className={`group bg-slate-800/40 hover:bg-slate-800/60 transition-all duration-200 border border-slate-700/50 hover:border-blue-500/50 rounded-lg p-3 text-sm shadow-sm hover:shadow-md ${
+      className={`group bg-slate-800/40 hover:bg-slate-800/60 transition-all duration-200 border border-slate-700/50 hover:border-blue-500/50 rounded-lg p-4 text-sm shadow-sm hover:shadow-md w-64 flex-shrink-0 ${
         documentPath ? "cursor-pointer" : "cursor-default"
       }`}
     >
+      {/* Header - SOURCE NUMBER & ICON */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-blue-400 font-medium text-xs tracking-wide">
-          SOURCE {index + 1}
+        <span className="text-blue-400 font-medium text-xs tracking-wide uppercase">
+          Source {index + 1}
         </span>
         {documentPath && (
-          <ExternalLink
-            size={14}
-            className="text-slate-500 group-hover:text-blue-400 transition"
-          />
+          <ExternalLink size={14} className="text-slate-500 group-hover:text-blue-400 transition" />
         )}
       </div>
 
-      {/* Case Name */}
+      {/* Case Name - Bold & Prominent */}
       {caseName && (
-        <div className="text-slate-200 text-sm font-semibold truncate mb-1">
+        <div className="text-slate-100 text-sm font-bold truncate mb-2 line-clamp-2">
           {caseName.replace(/_/g, " ")}
         </div>
       )}
 
-      {/* ID */}
-      <div className="text-slate-300 text-xs font-mono mb-2">
-        ID: {displayId}
-      </div>
+      {/* ID - Small & Monospace */}
+      <div className="text-slate-400 text-xs font-mono mb-2">ID: {displayId}</div>
 
       {/* Content Preview */}
       {isObject && sourceId.content && (
-        <p className="text-slate-400 text-xs leading-relaxed line-clamp-2 mb-2">
-          {sourceId.content.substring(0, 120)}...
+        <p className="text-slate-400 text-xs leading-relaxed line-clamp-2 mb-2 bg-slate-900/30 rounded p-2">
+          "{sourceId.content.substring(0, 100)}..."
         </p>
       )}
 
       {/* Court Info */}
-      {courtName && <p className="text-slate-500 text-xs mb-1">{courtName}</p>}
-
-      {/* Document Path */}
-      {documentPath && (
-        <p className="text-blue-400 text-xs mt-2 hover:text-blue-300 font-medium">
-          {isLoading ? "⏳ Loading..." : "📄 Click to view PDF"}
+      {courtName && (
+        <p className="text-slate-500 text-xs mb-2 font-medium">
+          📍 {courtName}
         </p>
       )}
 
       {/* Metadata Info */}
       {isObject && sourceId.metadata && (
-        <div className="text-slate-600 text-xs mt-2 space-y-1">
-          {docketNumber && <p>Docket: {docketNumber}</p>}
-          {disposition && <p>Disposition: {disposition}</p>}
+        <div className="text-slate-600 text-xs space-y-1 mb-3">
+          {docketNumber && <p>📋 Docket: {docketNumber}</p>}
+          {disposition && <p>⚖️ {disposition}</p>}
         </div>
+      )}
+
+      {/* Action Button - Prominent */}
+      {documentPath && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenDocument();
+          }}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 rounded font-medium flex items-center justify-center gap-2 transition-colors mt-2"
+        >
+          <ExternalLink size={14} />
+          {isLoading ? "Loading..." : "View PDF"}
+        </button>
       )}
     </div>
   );
@@ -808,21 +886,51 @@ export default function ChatPage() {
                                   />
                                 </svg>
                               </div>
-                              <span>Legal Sources</span>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {msg.sources && msg.sources.length > 0 && (
-                                <div className="space-y-3">
-                                  <div className="flex items-center text-sm font-semibold text-slate-300 mb-3">
-                                    <FileText
-                                      size={14}
-                                      className="mr-2 text-blue-400"
+                            {msg.sources && msg.sources.length > 0 && (
+                              <div className="mt-6 mb-4">
+                                {/* Title */}
+                                <div className="flex items-center text-sm font-semibold text-slate-300 mb-3">
+                                  <FileText
+                                    size={14}
+                                    className="mr-2 text-blue-400"
+                                  />
+                                  <span>
+                                    Legal Sources ({msg.sources.length})
+                                  </span>
+                                </div>
+
+                                {/* Horizontal Scroll Container */}
+                                <div className="relative group">
+                                  {/* Left Arrow - appears on hover */}
+                                  <button
+                                    onClick={() => {
+                                      const container = document.getElementById(
+                                        `sources-scroll-${msg.id}`
+                                      );
+                                      container?.scrollBy({
+                                        left: -350,
+                                        behavior: "smooth",
+                                      });
+                                    }}
+                                    className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-slate-900/90 hover:bg-slate-800 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                    aria-label="Scroll left"
+                                  >
+                                    <ChevronLeft
+                                      size={16}
+                                      className="text-slate-300"
                                     />
-                                    <span>
-                                      Legal Sources ({msg.sources.length})
-                                    </span>
-                                  </div>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  </button>
+
+                                  {/* Scrollable Content */}
+                                  <div
+                                    id={`sources-scroll-${msg.id}`}
+                                    className="flex gap-3 overflow-x-auto pb-2 px-8 scroll-smooth"
+                                    style={{
+                                      scrollbarWidth: "thin",
+                                      msOverflowStyle: "none",
+                                    }}
+                                  >
                                     {msg.sources.map((source, idx) => (
                                       <SourceCard
                                         key={
@@ -835,9 +943,35 @@ export default function ChatPage() {
                                       />
                                     ))}
                                   </div>
+
+                                  {/* Right Arrow - appears on hover */}
+                                  <button
+                                    onClick={() => {
+                                      const container = document.getElementById(
+                                        `sources-scroll-${msg.id}`
+                                      );
+                                      container?.scrollBy({
+                                        left: 350,
+                                        behavior: "smooth",
+                                      });
+                                    }}
+                                    className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-slate-900/90 hover:bg-slate-800 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                    aria-label="Scroll right"
+                                  >
+                                    <ChevronRight
+                                      size={16}
+                                      className="text-slate-300"
+                                    />
+                                  </button>
                                 </div>
-                              )}
-                            </div>
+
+                                {/* Scroll Hint */}
+                                <p className="text-xs text-slate-500 mt-2 text-center">
+                                  💡 Scroll horizontally or use arrows to see
+                                  more sources
+                                </p>
+                              </div>
+                            )}
                           </div>
                         )}
 
