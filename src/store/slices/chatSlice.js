@@ -98,14 +98,7 @@ const chatSlice = createSlice({
       state.currentMessages = action.payload;
     },
 
-    addUserMessage: (state, action) => {
-      state.currentMessages.push({
-        id: Date.now(),
-        role: 'user',
-        content: action.payload,
-        created_at: new Date().toISOString(),
-      });
-    },
+    addUserMessage: (state, action) => {state.currentMessages.push(action.payload)},
 
     addAssistantMessage: (state, action) => {
       state.currentMessages.push({
@@ -114,6 +107,15 @@ const chatSlice = createSlice({
         content: action.payload,
         created_at: new Date().toISOString(),
       });
+    },
+
+    updateLastMessage: (state, action) => {
+      if (state.currentMessages.length > 0) {
+        const lastMsg = state.currentMessages[state.currentMessages.length - 1];
+        if (lastMsg.role === 'assistant') {
+          lastMsg.content = action.payload;
+        }
+      }
     },
 
     clearError: (state) => {
@@ -217,6 +219,7 @@ export const {
   addStreamingContent,
   resetStreamingContent,
   addUserMessage,
+  updateLastMessage,
   addAssistantMessage,
   clearError,
   newChat,

@@ -31,7 +31,9 @@ import {
   deleteConversation,
   selectConversation,
   newChat,
-  addUserMessage
+  addUserMessage,
+  addAssistantMessage,
+  updateLastMessage,
 } from "../store/slices/chatSlice";
 
 export const SourcesContainer = React.memo(
@@ -415,8 +417,12 @@ export default function ChatPage() {
 
     dispatch(
       addUserMessage({
-        conversationId: reduxCurrentConvId,
-        ...userMsg,
+        id: userMsg.id,
+        role: "user",
+        content: text,
+        conversation_id: reduxCurrentConvId,
+        created_at: userMsg.created_at,
+        sources: [],
       })
     );
 
@@ -652,15 +658,14 @@ export default function ChatPage() {
                     if (loadingTimer.current) {
                       clearInterval(loadingTimer.current);
                       loadingTimer.current = null;
+                      setLoadingLabel("");
                     }
-                    setLoadingLabel("");
                     aiMessageId = nanoid();
                     firstChunk = false;
 
                     dispatch(
-                      addMessage({
+                      addAssistantMessage({
                         id: aiMessageId,
-                        conversationId: conversationId,
                         role: "assistant",
                         content: "",
                         sources: [],
@@ -671,6 +676,7 @@ export default function ChatPage() {
                   } else {
                     // Update in-progress message UI
                     // Can add state update here if needed for real-time updates
+                    dispatch(updateLastMessage(aiText));
                   }
                 }
               }
