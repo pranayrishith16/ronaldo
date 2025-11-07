@@ -1048,13 +1048,14 @@ export default function ChatPage() {
                             <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-5 space-y-3">
                               <ReactMarkdown
                                 components={{
+                                  // Headings
                                   h1: ({ children }) => (
                                     <h1 className="text-2xl font-bold text-white mt-6 mb-4 first:mt-0">
                                       {children}
                                     </h1>
                                   ),
                                   h2: ({ children }) => (
-                                    <h2 className="text-xl font-bold text-slate-100 mt-5 mb-3 first:mt-0">
+                                    <h2 className="text-xl font-bold text-slate-100 mt-5 mb-3 first:mt-0 border-l-4 border-blue-500 pl-3">
                                       {children}
                                     </h2>
                                   ),
@@ -1063,34 +1064,162 @@ export default function ChatPage() {
                                       {children}
                                     </h3>
                                   ),
-                                  p: ({ children }) => (
-                                    <p className="mb-4 text-sm sm:text-base text-slate-300 leading-relaxed">
-                                      {children}
-                                    </p>
+
+                                  // Horizontal Divider
+                                  hr: () => (
+                                    <hr className="my-6 border-t border-slate-600/50" />
                                   ),
+
+                                  // Paragraphs with table detection
+                                  p: ({ children }) => {
+                                    const childrenText =
+                                      children?.toString() || "";
+                                    const sections =
+                                      childrenText.split(/\n\n+/);
+
+                                    return (
+                                      <>
+                                        {sections.map((section, sectionIdx) => {
+                                          const lines = section
+                                            .split("\n")
+                                            .filter((line) => line.trim());
+                                          const hasPipes = lines.some((line) =>
+                                            line.includes("|")
+                                          );
+
+                                          if (!hasPipes || lines.length < 2) {
+                                            return section.trim() ? (
+                                              <p
+                                                key={sectionIdx}
+                                                className="mb-4 text-sm sm:text-base text-slate-300 leading-relaxed"
+                                              >
+                                                {section}
+                                              </p>
+                                            ) : null;
+                                          }
+
+                                          const rows = lines
+                                            .map((line) => {
+                                              line = line.trim();
+                                              if (!line.startsWith("|"))
+                                                line = "| " + line;
+                                              if (!line.endsWith("|"))
+                                                line = line + " |";
+                                              return line
+                                                .split("|")
+                                                .map((cell) => cell.trim())
+                                                .filter((cell) => cell);
+                                            })
+                                            .filter((row) => row.length > 0);
+
+                                          const separatorIdx = rows.findIndex(
+                                            (row) =>
+                                              row.every((cell) =>
+                                                /^-+$/.test(cell)
+                                              )
+                                          );
+
+                                          const isTable =
+                                            separatorIdx > 0 &&
+                                            rows[0].length > 1 &&
+                                            rows.every(
+                                              (row) =>
+                                                row.length === rows[0].length
+                                            );
+
+                                          if (!isTable) {
+                                            return section.trim() ? (
+                                              <p
+                                                key={sectionIdx}
+                                                className="mb-4 text-sm sm:text-base text-slate-300 leading-relaxed"
+                                              >
+                                                {section}
+                                              </p>
+                                            ) : null;
+                                          }
+
+                                          const headers = rows[0];
+                                          const bodyRows = rows.slice(
+                                            separatorIdx + 1
+                                          );
+
+                                          return (
+                                            <div
+                                              key={sectionIdx}
+                                              className="overflow-x-auto my-4 rounded-lg border border-slate-700"
+                                            >
+                                              <table className="min-w-full text-xs sm:text-sm border-collapse">
+                                                <thead className="bg-slate-700/50 border-b border-slate-600">
+                                                  <tr>
+                                                    {headers.map(
+                                                      (header, idx) => (
+                                                        <th
+                                                          key={idx}
+                                                          className="px-4 py-3 font-bold text-left text-slate-50 border-r border-slate-600 last:border-r-0"
+                                                        >
+                                                          {header}
+                                                        </th>
+                                                      )
+                                                    )}
+                                                  </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-700">
+                                                  {bodyRows.map(
+                                                    (row, rowIdx) => (
+                                                      <tr
+                                                        key={rowIdx}
+                                                        className="hover:bg-slate-700/30"
+                                                      >
+                                                        {row.map(
+                                                          (cell, cellIdx) => (
+                                                            <td
+                                                              key={cellIdx}
+                                                              className="px-4 py-2 text-slate-300 border-r border-slate-600/50 last:border-r-0"
+                                                            >
+                                                              {cell}
+                                                            </td>
+                                                          )
+                                                        )}
+                                                      </tr>
+                                                    )
+                                                  )}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          );
+                                        })}
+                                      </>
+                                    );
+                                  },
+
+                                  // Lists
                                   ul: ({ children }) => (
-                                    <ul className="list-disc pl-6 mb-4 space-y-2 text-slate-300 text-sm sm:text-base">
+                                    <ul className="list-disc pl-6 mb-4 space-y-2 text-slate-300 text-sm sm:text-base marker:text-blue-400">
                                       {children}
                                     </ul>
                                   ),
                                   ol: ({ children }) => (
-                                    <ol className="list-decimal pl-6 mb-4 space-y-2 text-slate-300 text-sm sm:text-base">
+                                    <ol className="list-decimal pl-6 mb-4 space-y-2 text-slate-300 text-sm sm:text-base marker:text-blue-400">
                                       {children}
                                     </ol>
                                   ),
                                   li: ({ children }) => (
-                                    <li className="leading-relaxed">
+                                    <li className="leading-relaxed ml-2">
                                       {children}
                                     </li>
                                   ),
+
+                                  // Blockquote
                                   blockquote: ({ children }) => (
-                                    <blockquote className="border-l-4 border-slate-600 bg-slate-700/30 pl-4 pr-3 py-2 my-4 rounded-r italic text-slate-300">
+                                    <blockquote className="border-l-4 border-blue-500 bg-slate-700/20 pl-4 pr-3 py-3 my-4 rounded-r italic text-slate-300 font-medium">
                                       {children}
                                     </blockquote>
                                   ),
+
+                                  // Code
                                   code: ({ children, inline }) =>
                                     inline ? (
-                                      <code className="bg-slate-700 rounded px-2 py-1 text-blue-300 font-mono text-xs sm:text-sm">
+                                      <code className="bg-slate-700 rounded px-2 py-1 text-blue-300 font-mono text-xs sm:text-sm break-words">
                                         {children}
                                       </code>
                                     ) : (
@@ -1100,6 +1229,8 @@ export default function ChatPage() {
                                         </code>
                                       </pre>
                                     ),
+
+                                  // Strong and Emphasis
                                   strong: ({ children }) => (
                                     <strong className="font-bold text-white">
                                       {children}
@@ -1110,6 +1241,8 @@ export default function ChatPage() {
                                       {children}
                                     </em>
                                   ),
+
+                                  // Links
                                   a: ({ children, href }) => (
                                     <a
                                       href={href}
@@ -1117,9 +1250,11 @@ export default function ChatPage() {
                                       rel="noopener noreferrer"
                                       className="text-blue-400 underline hover:text-blue-300 transition text-sm sm:text-base"
                                     >
-                                      {children}
+                                      {children} ↗
                                     </a>
                                   ),
+
+                                  // Tables (for proper markdown tables)
                                   table: ({ children }) => (
                                     <div className="overflow-x-auto my-4 rounded-lg border border-slate-700">
                                       <table className="min-w-full text-xs sm:text-sm border-collapse">
@@ -1138,7 +1273,7 @@ export default function ChatPage() {
                                     </tbody>
                                   ),
                                   tr: ({ children }) => (
-                                    <tr className="hover:bg-slate-700/30 border-b border-slate-700">
+                                    <tr className="hover:bg-slate-700/30">
                                       {children}
                                     </tr>
                                   ),
