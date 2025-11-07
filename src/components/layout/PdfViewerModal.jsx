@@ -33,7 +33,7 @@ const PdfViewerModal = () => {
 
         // ✅ SECURE: Make fetch request with Authorization header
         // Backend uses @Depends(verify_jwt_token) to verify it
-        const backendHost = "https://veritlyai.com";
+        const backendHost = "https://www.veritlyai.com";
         const fullUrl = documentUrl.startsWith("https")
           ? documentUrl
           : `${backendHost}${documentUrl}`;
@@ -133,7 +133,6 @@ const PdfViewerModal = () => {
               src={blobUrl}
               className="w-full h-full border-none"
               title={`PDF - ${fileName}`}
-              sandbox="allow-same-origin allow-scripts"
               onLoad={() => console.log("[PDF-MODAL] PDF displayed ✓")}
               onError={() => console.error("[PDF-MODAL] iframe error")}
             />
