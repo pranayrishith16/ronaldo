@@ -413,7 +413,7 @@ export default function ChatPage() {
     };
 
     dispatch(
-      addMessage({
+      addUserMessage({
         conversationId: conversationId,
         ...userMsg,
       })
