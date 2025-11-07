@@ -1122,13 +1122,13 @@ export default function ChatPage() {
                                   ),
                                   table: ({ children }) => (
                                     <div className="overflow-x-auto my-4 rounded-lg border border-slate-700">
-                                      <table className="min-w-full text-xs sm:text-sm">
+                                      <table className="min-w-full text-xs sm:text-sm border-collapse">
                                         {children}
                                       </table>
                                     </div>
                                   ),
                                   thead: ({ children }) => (
-                                    <thead className="bg-slate-700/50">
+                                    <thead className="bg-slate-700/50 border-b border-slate-600">
                                       {children}
                                     </thead>
                                   ),
@@ -1138,17 +1138,17 @@ export default function ChatPage() {
                                     </tbody>
                                   ),
                                   tr: ({ children }) => (
-                                    <tr className="hover:bg-slate-700/30">
+                                    <tr className="hover:bg-slate-700/30 border-b border-slate-700">
                                       {children}
                                     </tr>
                                   ),
                                   th: ({ children }) => (
-                                    <th className="px-4 py-2 font-semibold text-left text-slate-100">
+                                    <th className="px-4 py-3 font-bold text-left text-slate-50 bg-slate-700/70 border-r border-slate-600 last:border-r-0">
                                       {children}
                                     </th>
                                   ),
                                   td: ({ children }) => (
-                                    <td className="px-4 py-2 text-slate-300">
+                                    <td className="px-4 py-2 text-slate-300 border-r border-slate-600/50 last:border-r-0">
                                       {children}
                                     </td>
                                   ),
