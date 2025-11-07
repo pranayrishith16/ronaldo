@@ -412,6 +412,15 @@ export default function ChatPage() {
       created_at: new Date().toISOString(),
     };
 
+    dispatch(
+      addMessage({
+        conversationId: conversationId,
+        ...userMsg,
+      })
+    );
+
+    setMessage(""); 
+
     // ============== LOADING TIMER ==============
     let seconds = 0;
     setLoadingLabel(`Analyzing... ${seconds}s`);
@@ -633,7 +642,17 @@ export default function ChatPage() {
                     aiMessageId = nanoid();
                     firstChunk = false;
 
-                    // Let Redux handle message updates after streaming completes
+                    dispatch(
+                      addMessage({
+                        id: aiMessageId,
+                        conversationId: conversationId,
+                        role: "assistant",
+                        content: "",
+                        sources: [],
+                        createdAt: new Date().toISOString(),
+                      })
+                    );
+                  
                   } else {
                     // Update in-progress message UI
                     // Can add state update here if needed for real-time updates
