@@ -24,7 +24,7 @@ export const loginUser = createAsyncThunk(
     'auth/loginUser',
     async ({email,password},{rejectWithValue}) => {
         try{
-            const response = await api.post('/auth/login',{email,password})
+            const response = await api.post('/api/auth/login',{email,password})
 
             return response.data
         } catch (error){
@@ -41,7 +41,7 @@ export const signupUser = createAsyncThunk(
     'auth/signupUser',
     async ({fullName, email, password},{rejectWithValue}) => {
         try{
-            const response = await api.post('/auth/signup',{fullName,email,password})
+            const response = await api.post('/api/auth/signup',{fullName,email,password})
 
             return response.data
         } catch(error){
@@ -59,7 +59,7 @@ export const refreshAccessToken = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       console.log('[AUTH] Refreshing access token...');
-      const response = await api.post('/auth/refresh-token');
+      const response = await api.post('/api/auth/refresh-token');
       console.log('[AUTH] Token refresh successful');
       return response.data.access_token;
     } catch (error) {
@@ -171,7 +171,7 @@ export const logoutUser = createAsyncThunk(
   'auth/logoutUser',
   async (_, { rejectWithValue }) => {
     try {
-      await api.post('/auth/logout');
+      await api.post('/api/auth/logout');
       return null;
     } catch (error) {
       console.warn('[AUTH] Logout request failed, but clearing local state anyway');
