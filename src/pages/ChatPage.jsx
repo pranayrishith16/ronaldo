@@ -1072,8 +1072,21 @@ export default function ChatPage() {
 
                                   // Paragraphs with table detection
                                   p: ({ children }) => {
-                                    const childrenText =
-                                      children?.toString() || "";
+                                    // Convert children to string - handle React elements properly
+                                    const childrenText = React.Children.toArray(
+                                      children
+                                    )
+                                      .map((child) => {
+                                        if (typeof child === "string")
+                                          return child;
+                                        if (child?.props?.children)
+                                          return React.Children.toArray(
+                                            child.props.children
+                                          ).join("");
+                                        return "";
+                                      })
+                                      .join("");
+
                                     const sections =
                                       childrenText.split(/\n\n+/);
 
