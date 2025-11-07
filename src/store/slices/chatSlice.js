@@ -101,13 +101,9 @@ const chatSlice = createSlice({
     addUserMessage: (state, action) => {state.currentMessages.push(action.payload)},
 
     addAssistantMessage: (state, action) => {
-      state.currentMessages.push({
-        id: Date.now(),
-        role: 'assistant',
-        content: action.payload,
-        created_at: new Date().toISOString(),
-      });
+      state.currentMessages.push(action.payload);
     },
+    
 
     updateLastMessage: (state, action) => {
       if (state.currentMessages.length > 0) {

@@ -595,120 +595,125 @@ export default function ChatPage() {
     const decoder = new TextDecoder();
     let aiText = "";
     let firstChunk = true;
+    let aiMessageId = null;
     let sources = [];
     let buffer = "";
-    let aiMessageId = null;
 
     try {
       while (true) {
-        const { value, done } = await reader.read();
+        const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-
+        buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
+
+        // Keep the last incomplete line in buffer
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const dataStr = line.slice(6).trim();
+          const trimmedLine = line.trim();
 
-            // ============== CHECK FOR DONE MARKER ==============
-            if (dataStr === "[DONE]") {
-              if (loadingTimer.current) {
-                clearInterval(loadingTimer.current);
-                loadingTimer.current = null;
-              }
+          // Skip empty lines and ping messages
+          if (!trimmedLine || trimmedLine === ":") continue;
+
+          // Check for DONE marker
+          if (trimmedLine === "data: [DONE]") {
+            console.log("[STREAM] Received [DONE] marker");
+            if (loadingTimer.current) {
+              clearInterval(loadingTimer.current);
+              loadingTimer.current = null;
               setLoadingLabel("");
-
-              if (aiMessageId && streamStartTime.current) {
-                const endTime = Date.now();
-                const duration = Math.round(
-                  (endTime - streamStartTime.current) / 1000
-                );
-                setGenerationTimes((prev) => ({
-                  ...prev,
-                  [aiMessageId]: duration,
-                }));
-              }
-              continue;
             }
+            break;
+          }
 
-            // Skip ping messages
-            if (dataStr.startsWith(":ping") || dataStr === "") continue;
+          // Parse SSE data
+          if (trimmedLine.startsWith("data: ")) {
+            const dataStr = trimmedLine.slice(6).trim();
 
             try {
               const data = JSON.parse(dataStr);
 
-              // ============== HANDLE METADATA (SOURCES) ==============
-              if (data.metadata && Array.isArray(data.metadata)) {
+              // On first token: add assistant message to Redux
+              if (firstChunk && data.content) {
+                firstChunk = false;
+                aiMessageId = nanoid();
+
+                if (loadingTimer.current) {
+                  clearInterval(loadingTimer.current);
+                  loadingTimer.current = null;
+                  setLoadingLabel("");
+                }
+
+                dispatch(
+                  addAssistantMessage({
+                    id: aiMessageId,
+                    role: "assistant",
+                    content: "",
+                    sources: [],
+                    createdAt: new Date().toISOString(),
+                  })
+                );
+              }
+
+              // Accumulate content
+              if (data.content) {
+                aiText += data.content;
+                // Update Redux with accumulated content in real-time
+                dispatch(updateLastMessage(aiText));
+              }
+
+              // Handle metadata/sources
+              if (data.metadata) {
                 sources = data.metadata;
               }
-
-              // ============== HANDLE STREAMED CONTENT ==============
-              if (data.choices?.[0]?.delta) {
-                const deltaContent = data.choices[0].delta.content || "";
-
-                if (deltaContent) {
-                  aiText += deltaContent;
-
-                  // First chunk: display immediately (handled by Redux)
-                  if (firstChunk) {
-                    if (loadingTimer.current) {
-                      clearInterval(loadingTimer.current);
-                      loadingTimer.current = null;
-                      setLoadingLabel("");
-                    }
-                    aiMessageId = nanoid();
-                    firstChunk = false;
-
-                    dispatch(
-                      addAssistantMessage({
-                        id: aiMessageId,
-                        role: "assistant",
-                        content: "",
-                        sources: [],
-                        createdAt: new Date().toISOString(),
-                      })
-                    );
-                  
-                  } else {
-                    // Update in-progress message UI
-                    // Can add state update here if needed for real-time updates
-                    dispatch(updateLastMessage(aiText));
-                  }
-                }
-              }
-
-              // ============== HANDLE ERRORS FROM BACKEND ==============
-              if (data.error) throw new Error(data.error);
             } catch (parseError) {
-              console.warn("Failed to parse SSE data:", dataStr, parseError);
+              console.warn("[STREAM] Failed to parse SSE data:", dataStr);
             }
           }
         }
       }
 
-      console.log("[CHAT] ✅ Stream completed. Full response:", aiText);
+      // Process any remaining buffer content
+      if (buffer.trim()) {
+        const trimmedLine = buffer.trim();
+        if (trimmedLine.startsWith("data: ")) {
+          const dataStr = trimmedLine.slice(6).trim();
+          try {
+            const data = JSON.parse(dataStr);
+            if (data.content) {
+              aiText += data.content;
+              dispatch(updateLastMessage(aiText));
+            }
+          } catch (parseError) {
+            console.warn("[STREAM] Failed to parse final buffer:", dataStr);
+          }
+        }
+      }
 
-      // ============ PERSIST STREAMED RESPONSE TO BACKEND ============
+      console.log("[STREAM] Stream completed. Full response:", aiText);
+
+      // Persist streamed response to backend
       try {
-        const api = (await import("../api/axiosInstance")).default;
-        await api.post(`/api/memory/conversations/${conversationId}/messages`, {
+        console.log("[STREAM] Persisting assistant message to backend...");
+        await api.post(`api/memory/conversations/${conversationId}/messages`, {
           content: aiText,
           role: "assistant",
           sources: sources,
         });
-        console.log("[CHAT] ✅ Assistant message saved to backend");
+        console.log("[STREAM] Assistant message saved to backend");
 
-        // Fetch updated messages from backend to sync Redux
+        // Fetch updated messages to sync Redux with backend IDs
         dispatch(fetchConversationMessages(conversationId));
       } catch (persistError) {
-        console.error("[CHAT] Failed to persist response:", persistError);
+        console.error("[STREAM] Failed to persist response:", persistError);
       }
     } catch (error) {
-      console.error("[CHAT] Stream reading error:", error);
+      console.error("[STREAM] Stream reading error:", error);
+      if (loadingTimer.current) {
+        clearInterval(loadingTimer.current);
+        loadingTimer.current = null;
+      }
       throw error;
     }
   };
