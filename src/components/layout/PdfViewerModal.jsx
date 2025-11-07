@@ -33,7 +33,7 @@ const PdfViewerModal = () => {
 
         // ✅ SECURE: Make fetch request with Authorization header
         // Backend uses @Depends(verify_jwt_token) to verify it
-        const backendHost = "https://api.veritlyai.com";
+        const backendHost = "https://veritlyai.com";
         const fullUrl = documentUrl.startsWith("https")
           ? documentUrl
           : `${backendHost}${documentUrl}`;

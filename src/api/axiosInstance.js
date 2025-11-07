@@ -4,7 +4,7 @@ import { store } from '../store/store';
 
 import { logout, setAccessToken } from '../store/slices/authSlice';
 
-const API_BASE_URL = 'https://api.veritlyai.com'
+const API_BASE_URL = 'https://veritlyai.com'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -45,7 +45,7 @@ api.interceptors.request.use(
     console.log('[API] - Token in Redux:', accessToken ? '✅ Present' : '❌ Missing');
 
     // Skip token handling for login, signup, and refresh endpoints
-    const skipAuthEndpoints = ['/auth/login', '/auth/register', '/auth/refresh-token'];
+    const skipAuthEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh-token'];
     if (skipAuthEndpoints.some(endpoint => config.url.includes(endpoint))) {
       console.log('[API] - Skipping auth for:', config.url);
       return config;
@@ -58,7 +58,7 @@ api.interceptors.request.use(
         // Prevent multiple simultaneous refresh attempts
         if (!refreshPromise) {
           refreshPromise = api
-            .post('/auth/refresh-token')  // ✅ FIXED: Use correct endpoint
+            .post('/api/auth/refresh-token')  // ✅ FIXED: Use correct endpoint
             .then((response) => {
               const newToken = response.data.access_token;
               store.dispatch(setAccessToken(newToken));
@@ -125,7 +125,7 @@ api.interceptors.response.use(
       try {
         if (!refreshPromise) {
           refreshPromise = api
-            .post('/auth/refresh-token')  // ✅ FIXED: Use correct endpoint
+            .post('/api/auth/refresh-token')  // ✅ FIXED: Use correct endpoint
             .then((response) => {
               const newToken = response.data.access_token;
               store.dispatch(setAccessToken(newToken));

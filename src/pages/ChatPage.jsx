@@ -370,7 +370,7 @@ export default function ChatPage() {
       }
 
       // ============== MAKE STREAMING REQUEST ============
-      const response = await fetch("https://api.veritlyai.com/query/stream", {
+      const response = await fetch("https://veritlyai.com/api/query/stream", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -397,7 +397,7 @@ export default function ChatPage() {
           console.log("[CHAT] ✅ Token refreshed, retrying request");
 
           const retryResponse = await fetch(
-            "https://api.veritlyai.com/query/stream",
+            "https://veritlyai.com/api/query/stream",
             {
               method: "POST",
               headers: {
