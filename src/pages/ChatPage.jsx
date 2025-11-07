@@ -31,6 +31,7 @@ import {
   deleteConversation,
   selectConversation,
   newChat,
+  addUserMessage
 } from "../store/slices/chatSlice";
 
 export const SourcesContainer = React.memo(
