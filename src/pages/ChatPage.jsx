@@ -637,7 +637,7 @@ export default function ChatPage() {
               const data = JSON.parse(dataStr);
 
               // On first token: add assistant message to Redux
-              if (firstChunk && data.content) {
+              if (firstChunk) {
                 firstChunk = false;
                 aiMessageId = nanoid();
 
@@ -647,17 +647,18 @@ export default function ChatPage() {
                   setLoadingLabel("");
                 }
 
-                // Initialize sources array from first chunk if available
+                // Initialize sources from first chunk
                 if (data.sources) {
                   sources = data.sources;
                 }
 
+                // Add message to Redux immediately
                 dispatch(
                   addAssistantMessage({
                     id: aiMessageId,
                     role: "assistant",
                     content: "",
-                    sources: sources, // ← Add sources here
+                    sources: sources,
                     createdAt: new Date().toISOString(),
                   })
                 );
@@ -666,19 +667,18 @@ export default function ChatPage() {
               // Accumulate content
               if (data.content) {
                 aiText += data.content;
-                // Update Redux with accumulated content in real-time
                 dispatch(updateLastMessage(aiText));
               }
 
               // Handle metadata/sources - UPDATE IN REAL-TIME
               if (data.sources && Array.isArray(data.sources)) {
-                sources = data.sources; // Update sources array
+                sources = data.sources;
                 dispatch(
                   updateAssistantMessageSources({
                     messageId: aiMessageId,
-                    sources,
+                    sources: sources,
                   })
-                ); // ← Add this
+                );
               }
             } catch (parseError) {
               console.warn("[STREAM] Failed to parse SSE data:", dataStr);
