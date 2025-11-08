@@ -673,7 +673,12 @@ export default function ChatPage() {
               // Handle metadata/sources - UPDATE IN REAL-TIME
               if (data.sources && Array.isArray(data.sources)) {
                 sources = data.sources; // Update sources array
-                dispatch(updateAssistantMessageSources(sources)); // ← Add this
+                dispatch(
+                  updateAssistantMessageSources({
+                    messageId: aiMessageId,
+                    sources,
+                  })
+                ); // ← Add this
               }
             } catch (parseError) {
               console.warn("[STREAM] Failed to parse SSE data:", dataStr);
@@ -695,7 +700,12 @@ export default function ChatPage() {
             }
             if (data.sources && Array.isArray(data.sources)) {
               sources = data.sources;
-              dispatch(updateAssistantMessageSources(sources)); // ← Add this
+              dispatch(
+                updateAssistantMessageSources({
+                  messageId: aiMessageId,
+                  sources,
+                })
+              );
             }
           } catch (parseError) {
             console.warn("[STREAM] Failed to parse final buffer:", dataStr);
