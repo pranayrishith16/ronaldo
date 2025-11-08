@@ -458,9 +458,26 @@ export default function ChatPage() {
     try {
       // ============ ENSURE CONVERSATION EXISTS ============
       let conversationId = reduxCurrentConvId;
+
       if (!conversationId) {
-        conversationId = await ensureConversation(text);
+        // Create new conversation if needed
+        try {
+          console.log("[CHAT] Creating new conversation...");
+          const title = text.substring(0, 50) + (text.length > 50 ? "..." : "");
+
+          const result = await dispatch(
+            createNewConversation({ title })
+          ).unwrap();
+
+          console.log("[CHAT] ✅ Conversation created:", result.id);
+          conversationId = result.id;
+        } catch (error) {
+          console.error("[CHAT] Failed to create conversation:", error);
+          setError("Failed to create conversation. Please try again.");
+          return;
+        }
       }
+
       console.log("[CHAT] Using conversation_id:", conversationId);
 
       // ============ PERSIST USER MESSAGE TO BACKEND ============
