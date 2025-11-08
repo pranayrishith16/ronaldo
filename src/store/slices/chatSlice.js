@@ -103,6 +103,15 @@ const chatSlice = createSlice({
     addAssistantMessage: (state, action) => {
       state.currentMessages.push(action.payload);
     },
+
+    updateAssistantMessageSources: (state, action) => {
+      if (state.currentMessages.length > 0) {
+        const lastMsg = state.currentMessages[state.currentMessages.length - 1];
+        if (lastMsg.role === 'assistant') {
+          lastMsg.sources = action.payload;
+        }
+      }
+    },    
     
 
     updateLastMessage: (state, action) => {
@@ -219,6 +228,7 @@ export const {
   addAssistantMessage,
   clearError,
   newChat,
+  updateAssistantMessageSources
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

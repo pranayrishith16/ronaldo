@@ -33,6 +33,7 @@ import {
   newChat,
   addUserMessage,
   addAssistantMessage,
+  updateAssistantMessageSources,
   updateLastMessage,
 } from "../store/slices/chatSlice";
 
@@ -431,9 +432,10 @@ export default function ChatPage() {
     let conversationId = reduxCurrentConvId;
     if (!conversationId) {
       try {
-        const result = await dispatch(createNewConversation({
-          title: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-        })).unwrap();
+        const title = text.substring(0, 50) + (text.length > 50 ? "..." : "");
+        const result = await dispatch(
+          createNewConversation({ title })
+        ).unwrap();
         conversationId = result.id;
       } catch (error) {
         console.error('Failed to create conversation:', error);
@@ -645,12 +647,17 @@ export default function ChatPage() {
                   setLoadingLabel("");
                 }
 
+                // Initialize sources array from first chunk if available
+                if (data.sources) {
+                  sources = data.sources;
+                }
+
                 dispatch(
                   addAssistantMessage({
                     id: aiMessageId,
                     role: "assistant",
                     content: "",
-                    sources: [],
+                    sources: sources, // ← Add sources here
                     createdAt: new Date().toISOString(),
                   })
                 );
@@ -663,9 +670,10 @@ export default function ChatPage() {
                 dispatch(updateLastMessage(aiText));
               }
 
-              // Handle metadata/sources
-              if (data.metadata) {
-                sources = data.metadata;
+              // Handle metadata/sources - UPDATE IN REAL-TIME
+              if (data.sources && Array.isArray(data.sources)) {
+                sources = data.sources; // Update sources array
+                dispatch(updateAssistantMessageSources(sources)); // ← Add this
               }
             } catch (parseError) {
               console.warn("[STREAM] Failed to parse SSE data:", dataStr);
@@ -685,6 +693,10 @@ export default function ChatPage() {
               aiText += data.content;
               dispatch(updateLastMessage(aiText));
             }
+            if (data.sources && Array.isArray(data.sources)) {
+              sources = data.sources;
+              dispatch(updateAssistantMessageSources(sources)); // ← Add this
+            }
           } catch (parseError) {
             console.warn("[STREAM] Failed to parse final buffer:", dataStr);
           }
@@ -692,6 +704,12 @@ export default function ChatPage() {
       }
 
       console.log("[STREAM] Stream completed. Full response:", aiText);
+
+      const elapsed = Math.round((Date.now() - streamStartTime.current) / 1000);
+      setGenerationTimes((prev) => ({
+        ...prev,
+        [conversationId]: elapsed,
+      }));
 
       // Persist streamed response to backend
       try {
@@ -714,38 +732,27 @@ export default function ChatPage() {
         clearInterval(loadingTimer.current);
         loadingTimer.current = null;
       }
+      clearTimeout(timeoutId);
       throw error;
     }
   };
 
   // ============ CREATE NEW CHAT ============
   const handleNewChat = useCallback(() => {
-    // Reset Redux state for new conversation
-    // This will clear currentConversationId and trigger new conversation creation on first message
     console.log("[CHAT] Starting new chat");
-    // Dispatch action to clear current conversation
-    // You may need to add a "newChat" action to chatSlice
-  }, [dispatch]);
+    dispatch(newChat()); // ← Add this
+    setMessage("");
+    setSearchQuery("");
+  }, [dispatch]);  
 
   // ============ SELECT CONVERSATION ============
-  const selectConversation = useCallback(
+  const handleSelectConversationAction = useCallback(
     (conversationId) => {
-      console.log("[CHAT] Selecting conversation:", conversationId);
-      // Dispatch action to set current conversation
-      // You may need to add a "selectConversation" action to chatSlice
+      console.log("[CHAT] Selecting conversation", conversationId);
+      dispatch(selectConversation(conversationId));
     },
     [dispatch]
-  );
-
-  // ============ SELECT CONVERSATION ============
-  const handleSelectConversation = useCallback(
-    (conversationId) => {
-      console.log("[CHAT] Selecting conversation:", conversationId);
-      // ✅ FIXED: Actually dispatch the selectConversation action
-      dispatch(fetchConversationMessages(conversationId));
-    },
-    [dispatch]
-  );
+  );  
 
   // ============ DELETE CONVERSATION ============
   const handleDeleteConversation = useCallback(
@@ -841,7 +848,7 @@ export default function ChatPage() {
             filteredConversations.map((conv) => (
               <div
                 key={conv.id}
-                onClick={() => handleSelectConversation(conv.id)}
+                onClick={() => handleSelectConversationAction(conv.id)}
                 className={`group flex items-center space-x-3 px-3 py-2.5 text-sm rounded-lg cursor-pointer transition-all ${
                   conv.id === reduxCurrentConvId
                     ? "bg-slate-800 text-white"
