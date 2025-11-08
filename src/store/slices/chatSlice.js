@@ -41,7 +41,7 @@ export const createNewConversation = createAsyncThunk(
   async ({ title }, { rejectWithValue }) => {
     try {
       console.log('[CHAT] Creating new conversation:', title);
-      const response = await api.post('api/memory/conversations', { title });
+      const response = await api.post('/api/memory/conversations', { title });
       console.log('[CHAT] ✅ Conversation created:', response.data);
       return response.data;
     } catch (error) {
@@ -57,7 +57,7 @@ export const deleteConversation = createAsyncThunk(
   async (conversationId, { rejectWithValue }) => {
     try {
       console.log('[CHAT] Deleting conversation:', conversationId);
-      await api.delete(`api/memory/conversations/${conversationId}`);
+      await api.delete(`/api/memory/conversations/${conversationId}`);
       console.log('[CHAT] ✅ Conversation deleted');
       return conversationId;
     } catch (error) {
@@ -105,13 +105,27 @@ const chatSlice = createSlice({
     },
 
     updateAssistantMessageSources: (state, action) => {
-      if (state.currentMessages.length > 0) {
-        const lastMsg = state.currentMessages[state.currentMessages.length - 1];
-        if (lastMsg.role === 'assistant') {
-          lastMsg.sources = action.payload;
+      // Handle both direct array and object with messageId
+      const sources = Array.isArray(action.payload) 
+        ? action.payload 
+        : action.payload.sources;
+      
+      if (action.payload.messageId) {
+        // Find specific message by ID
+        const msg = state.currentMessages.find(m => m.id === action.payload.messageId);
+        if (msg) {
+          msg.sources = sources;
+        }
+      } else {
+        // Update last assistant message (fallback)
+        if (state.currentMessages.length > 0) {
+          const lastMsg = state.currentMessages[state.currentMessages.length - 1];
+          if (lastMsg.role === 'assistant') {
+            lastMsg.sources = sources;
+          }
         }
       }
-    },    
+    },        
     
 
     updateLastMessage: (state, action) => {
