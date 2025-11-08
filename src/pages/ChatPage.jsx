@@ -429,21 +429,6 @@ export default function ChatPage() {
 
     setMessage(""); 
 
-    let conversationId = reduxCurrentConvId;
-    if (!conversationId) {
-      try {
-        const title = text.substring(0, 50) + (text.length > 50 ? "..." : "");
-        const result = await dispatch(
-          createNewConversation({ title })
-        ).unwrap();
-        conversationId = result.id;
-      } catch (error) {
-        console.error('Failed to create conversation:', error);
-        setError('Failed to create conversation');
-        return;
-      }
-    }
-
     // ============== LOADING TIMER ==============
     let seconds = 0;
     setLoadingLabel(`Analyzing... ${seconds}s`);
