@@ -59,7 +59,20 @@ export const refreshAccessToken = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       console.log('[AUTH] Refreshing access token...');
-      const response = await api.post('/api/auth/refresh-token');
+      
+      // ✅ Get refresh token from localStorage
+      const refreshToken = localStorage.getItem('refreshToken');
+      
+      if (!refreshToken) {
+        console.error('[AUTH] No refresh token found');
+        return rejectWithValue('No refresh token available');
+      }
+      
+      // ✅ Send refresh token in request body
+      const response = await api.post('/api/auth/refresh-token', {
+        refresh_token: refreshToken  // ← ADD THIS
+      });
+      
       console.log('[AUTH] Token refresh successful');
       return response.data.access_token;
     } catch (error) {
@@ -68,6 +81,7 @@ export const refreshAccessToken = createAsyncThunk(
     }
   }
 );
+
 
 // ======== CHECK AUTH (on startup) ==========
 
