@@ -57,8 +57,12 @@ api.interceptors.request.use(
       try {
         // Prevent multiple simultaneous refresh attempts
         if (!refreshPromise) {
+          const state = store.getState();
+          const refreshToken = state.auth.refreshToken;
           refreshPromise = api
-            .post('/api/auth/refresh-token')  // ✅ FIXED: Use correct endpoint
+            .post('/api/auth/refresh-token',{
+              refresh_token: refreshToken
+            })  // ✅ FIXED: Use correct endpoint
             .then((response) => {
               const newToken = response.data.access_token;
               store.dispatch(setAccessToken(newToken));
@@ -124,8 +128,12 @@ api.interceptors.response.use(
 
       try {
         if (!refreshPromise) {
+          const state = store.getState();
+          const refreshToken = state.auth.refreshToken;
           refreshPromise = api
-            .post('/api/auth/refresh-token')  // ✅ FIXED: Use correct endpoint
+            .post('/api/auth/refresh-token',{
+              refresh_token: refreshToken
+            })  // ✅ FIXED: Use correct endpoint
             .then((response) => {
               const newToken = response.data.access_token;
               store.dispatch(setAccessToken(newToken));

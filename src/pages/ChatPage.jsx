@@ -22,7 +22,7 @@ import {
   fetchDocumentUrl,
   clearDocumentUrl,
   setFileName,
-  closeViewer
+  closeViewer,
 } from "../store/slices/documentSlice";
 import {
   fetchConversations,
@@ -166,7 +166,11 @@ const SourceCard = React.memo(({ sourceId, index }) => {
       }
 
       // Extract the blob path from your source data
-      const documentPath = data.file_path || data.blob_path || data.source_id || data.metadata?.source;
+      const documentPath =
+        data.file_path ||
+        data.blob_path ||
+        data.source_id ||
+        data.metadata?.source;
 
       if (!documentPath) {
         console.warn("No file path found in source data");
@@ -268,7 +272,6 @@ const SourceCard = React.memo(({ sourceId, index }) => {
 
 SourceCard.displayName = "SourceCard";
 
-
 export default function ChatPage() {
   useEffect(() => {
     document.title = "Veritly AI - Legal Research Assistant";
@@ -293,7 +296,6 @@ export default function ChatPage() {
   const handleCloseViewer = () => {
     dispatch(closeViewer());
   };
-
 
   // Local State
   const [message, setMessage] = useState("");
@@ -441,7 +443,7 @@ export default function ChatPage() {
       })
     );
 
-    setMessage(""); 
+    setMessage("");
 
     // ============== LOADING TIMER ==============
     let seconds = 0;
@@ -460,24 +462,6 @@ export default function ChatPage() {
       console.log("[CHAT] Using conversation_id:", conversationId);
 
       // ============ PERSIST USER MESSAGE TO BACKEND ============
-      if (conversationId && !conversationId.startsWith("new-")) {
-        try {
-          console.log("[CHAT] Persisting user message to backend...");
-          await api.post(
-            `/api/memory/conversations/${conversationId}/messages`,
-            {
-              content: text,
-              role: "user",
-            }
-          );
-          console.log("[CHAT] ✅ User message persisted");
-        } catch (persistError) {
-          console.error("[CHAT] Failed to persist message:", persistError);
-          // Continue even if persistence fails
-        }
-      } else {
-        console.log("[CHAT] Skipping persistence for placeholder conversation");
-      }
 
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => abortController.abort(), 60000);
@@ -555,8 +539,7 @@ export default function ChatPage() {
           dispatch(logout());
           navigate("/login");
           throw new Error("Session expired. Please login again.");
-        }
-        finally{
+        } finally {
           isStreaming.current = false;
         }
       }
@@ -627,30 +610,33 @@ export default function ChatPage() {
           const trimmedLine = line.trim();
 
           // Skip empty lines and ping messages
-          if (!trimmedLine || trimmedLine === ':ping') continue;
+          if (!trimmedLine || trimmedLine === ":ping") continue;
 
-          if (trimmedLine === 'data: DONE' || trimmedLine === 'DONE') {
-            console.log('[STREAM] Skipping DONE marker');
+          if (trimmedLine === "data: DONE" || trimmedLine === "DONE") {
+            console.log("[STREAM] Skipping DONE marker");
             if (loadingTimer.current) {
               clearInterval(loadingTimer.current);
               loadingTimer.current = null;
             }
-            setLoadingLabel('');
-            continue;  // Skip to next line, don't process as data
+            setLoadingLabel("");
+            continue; // Skip to next line, don't process as data
           }
 
           // Parse SSE data
           if (trimmedLine.startsWith("data: ")) {
             const dataStr = trimmedLine.slice(6).trim();
+            if (!dataStr || dataStr === "[DONE]") continue;
 
             try {
               const data = JSON.parse(dataStr);
 
-              if (data.event === 'conversation_created') {
+              if (data.event === "conversation_created") {
                 const newConv = data.conversation;
-                
+
                 // Find placeholder
-                const placeholder = reduxConversations.find(c => c.is_placeholder);
+                const placeholder = reduxConversations.find(
+                  (c) => c.is_placeholder
+                );
                 if (placeholder) {
                   dispatch(
                     replaceConversation({
@@ -675,7 +661,7 @@ export default function ChatPage() {
                     })
                   );
                 }
-                
+
                 dispatch(selectConversation(newConv.id));
                 conversationId = newConv.id;
                 console.log(
@@ -685,7 +671,6 @@ export default function ChatPage() {
                   newConv.title
                 );
 
-                
                 continue; // Skip to next message without returning
               }
 
@@ -790,25 +775,7 @@ export default function ChatPage() {
         );
       }
 
-
       // Persist streamed response to backend
-      if (conversationId && !conversationId.startsWith("new-")) {
-        try {
-          console.log("[STREAM] Persisting assistant message...");
-          await api.post(
-            `/api/memory/conversations/${conversationId}/messages`,
-            {
-              content: full_answer,
-              role: "assistant",
-              sources: sources,
-            }
-          );
-        } catch (e) {
-          console.error("[STREAM] Failed to persist:", e);
-        }
-      } else {
-        console.log("[STREAM] Skipping persistence for placeholder");
-      }
     } catch (error) {
       console.error("[STREAM] Stream reading error:", error);
       if (loadingTimer.current) {
@@ -847,8 +814,6 @@ export default function ChatPage() {
 
     console.log("[CHAT] Placeholder added to sidebar");
   }, [dispatch]);
-  
-  
 
   // ============ SELECT CONVERSATION ============
   const handleSelectConversationAction = useCallback(
@@ -857,7 +822,7 @@ export default function ChatPage() {
       dispatch(selectConversation(conversationId));
     },
     [dispatch]
-  );  
+  );
 
   // ============ DELETE CONVERSATION ============
   const handleDeleteClick = useCallback((reduxCurrentConvId, e) => {
@@ -875,9 +840,6 @@ export default function ChatPage() {
   const cancelDelete = useCallback(() => {
     setDeleteConfirmDialog(null);
   }, []);
-  
-  
-  
 
   return (
     <div className="bg-slate-950 h-screen flex overflow-hidden">
