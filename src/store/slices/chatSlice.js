@@ -22,12 +22,19 @@ export const fetchConversationMessages = createAsyncThunk(
   'chat/fetchConversationMessages',
   async (conversationId, { rejectWithValue }) => {
     try {
+      // ✅ NEW: Don't fetch for placeholder conversations
+      if (conversationId.startsWith('new-')) {
+        console.log('[CHAT] Skipping fetch for placeholder conversation');
+        return { conversationId, messages: [] };
+      }
+      
       console.log('[CHAT] Fetching messages for:', conversationId);
-      const response = await api.get(`api/memory/conversations/${conversationId}/messages`);
-      console.log('[CHAT] ✅ Messages fetched:', response.data);
+      const response = await api.get(`/api/memory/conversations/${conversationId}/messages`);
+      console.log('[CHAT] ✅ Messages fetched:', response.data.length);
+      
       return {
         conversationId,
-        messages: response.data || [],
+        messages: response.data
       };
     } catch (error) {
       console.error('[CHAT] ❌ Error fetching messages:', error);
@@ -35,6 +42,7 @@ export const fetchConversationMessages = createAsyncThunk(
     }
   }
 );
+
 
 export const createNewConversation = createAsyncThunk(
   'chat/createNewConversation',
@@ -104,6 +112,11 @@ const chatSlice = createSlice({
       state.currentMessages.push(action.payload);
     },
 
+    updateConversationIdOnly: (state, action) => {
+      state.currentConversationId = action.payload;
+      console.log('[CHAT] Updated conversation ID:', action.payload);
+    },  
+
     updateAssistantMessageSources: (state, action) => {
       // Handle both direct array and object with messageId
       const sources = Array.isArray(action.payload) 
@@ -126,16 +139,65 @@ const chatSlice = createSlice({
         }
       }
     },        
+
+    addNewConversation: (state, action) => {
+      const newConv = action.payload;
+      state.conversations.unshift(newConv);  // Add to top
+      state.currentConversationId = newConv.id;
+    },
     
+    updateConversationTitle: (state, action) => {
+      const { conversationId, title } = action.payload;
+      const conv = state.conversations.find(c => c.id === conversationId);
+      if (conv) conv.title = title;
+    },
 
     updateLastMessage: (state, action) => {
       if (state.currentMessages.length > 0) {
-        const lastMsg = state.currentMessages[state.currentMessages.length - 1];
+        const lastMessageIndex = state.currentMessages.length - 1;
+        const lastMsg = state.currentMessages[lastMessageIndex];
         if (lastMsg.role === 'assistant') {
-          lastMsg.content = action.payload;
+          // ✅ Create a new message object to trigger React re-render
+          state.currentMessages[lastMessageIndex] = {
+            ...lastMsg,
+            content: action.payload,
+          };
         }
       }
     },
+
+    updateMessageGenerationTime: (state, action) => {
+      const { messageId, generationTime } = action.payload;
+      const lastMessage = state.currentMessages[state.currentMessages.length - 1];
+      
+      if (lastMessage && lastMessage.id === messageId) {
+        lastMessage.generationTime = generationTime;
+        console.log('[CHAT] Updated message generation time:', generationTime);
+      }
+    },
+    
+
+    replaceConversation: (state, action) => {
+      const { placeholderId, newConversation } = action.payload;
+      
+      // Remove placeholder
+      state.conversations = state.conversations.filter(c => c.id !== placeholderId);
+      
+      // Add real conversation
+      state.conversations.unshift(newConversation);
+      
+      // Update current ID
+      state.currentConversationId = newConversation.id;
+      
+      console.log('[CHAT] Replaced placeholder with real conversation');
+    },
+
+    removeAllPlaceholders: (state) => {
+      state.conversations = state.conversations.filter(
+        c => !c.is_placeholder
+      );
+      console.log('[CHAT] Removed all placeholder conversations');
+    },    
 
     clearError: (state) => {
       state.error = null;
@@ -242,7 +304,13 @@ export const {
   addAssistantMessage,
   clearError,
   newChat,
-  updateAssistantMessageSources
+  updateAssistantMessageSources,
+  updateConversationIdOnly,
+  addNewConversation,
+  updateConversationTitle,
+  replaceConversation,
+  removeAllPlaceholders,
+  updateMessageGenerationTime
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

@@ -35,6 +35,11 @@ import {
   addAssistantMessage,
   updateAssistantMessageSources,
   updateLastMessage,
+  addNewConversation,
+  updateConversationTitle,
+  replaceConversation,
+  removeAllPlaceholders,
+  updateMessageGenerationTime,
 } from "../store/slices/chatSlice";
 
 export const SourcesContainer = React.memo(
@@ -296,6 +301,8 @@ export default function ChatPage() {
   const [loadingLabel, setLoadingLabel] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [error, setError] = useState(null);
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
   const [generationTimes, setGenerationTimes] = useState({});
 
   // Ref
@@ -303,6 +310,7 @@ export default function ChatPage() {
   const streamStartTime = useRef(null);
   const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const isStreaming = useRef(false);
 
   // Derived states from Redux
   const currentConversation = reduxConversations.find(
@@ -354,7 +362,11 @@ export default function ChatPage() {
 
   // FETCH messages when conversation changes
   useEffect(() => {
-    if (reduxCurrentConvId) {
+    if (
+      reduxCurrentConvId &&
+      !reduxCurrentConvId.startsWith("new-") &&
+      !isStreaming.current // ← ADD THIS LINE
+    ) {
       console.log(
         "[CHAT] Fetching messages for conversation:",
         reduxCurrentConvId
@@ -407,6 +419,8 @@ export default function ChatPage() {
     const text = message.trim();
     setError(null);
 
+    isStreaming.current = true;
+
     // Add user message to UI immediately
     const userMsg = {
       id: nanoid(),
@@ -443,40 +457,26 @@ export default function ChatPage() {
     try {
       // ============ ENSURE CONVERSATION EXISTS ============
       let conversationId = reduxCurrentConvId;
-
-      if (!conversationId) {
-        // Create new conversation if needed
-        try {
-          console.log("[CHAT] Creating new conversation...");
-          const title = text.substring(0, 50) + (text.length > 50 ? "..." : "");
-
-          const result = await dispatch(
-            createNewConversation({ title })
-          ).unwrap();
-
-          console.log("[CHAT] ✅ Conversation created:", result.id);
-          conversationId = result.id;
-        } catch (error) {
-          console.error("[CHAT] Failed to create conversation:", error);
-          setError("Failed to create conversation. Please try again.");
-          return;
-        }
-      }
-
       console.log("[CHAT] Using conversation_id:", conversationId);
 
       // ============ PERSIST USER MESSAGE TO BACKEND ============
-      try {
-        console.log("[CHAT] Persisting user message to backend...");
-
-        await api.post(`/api/memory/conversations/${conversationId}/messages`, {
-          content: text,
-          role: "user",
-        });
-        console.log("[CHAT] ✅ User message saved to backend");
-      } catch (persistError) {
-        console.error("[CHAT] Failed to persist message:", persistError);
-        // Continue with streaming even if persistence fails
+      if (conversationId && !conversationId.startsWith("new-")) {
+        try {
+          console.log("[CHAT] Persisting user message to backend...");
+          await api.post(
+            `/api/memory/conversations/${conversationId}/messages`,
+            {
+              content: text,
+              role: "user",
+            }
+          );
+          console.log("[CHAT] ✅ User message persisted");
+        } catch (persistError) {
+          console.error("[CHAT] Failed to persist message:", persistError);
+          // Continue even if persistence fails
+        }
+      } else {
+        console.log("[CHAT] Skipping persistence for placeholder conversation");
       }
 
       const abortController = new AbortController();
@@ -501,7 +501,10 @@ export default function ChatPage() {
         },
         body: JSON.stringify({
           query: text,
-          conversation_id: conversationId,
+          conversation_id:
+            conversationId && !conversationId.startsWith("new-")
+              ? conversationId
+              : null, // Send null for placeholders
           stream: true,
         }),
         signal: abortController.signal,
@@ -529,7 +532,10 @@ export default function ChatPage() {
               },
               body: JSON.stringify({
                 query: text,
-                conversation_id: conversationId,
+                conversation_id:
+                  conversationId && !conversationId.startsWith("new-")
+                    ? conversationId
+                    : null, // Send null for placeholders
                 stream: true,
               }),
               signal: abortController.signal,
@@ -549,6 +555,9 @@ export default function ChatPage() {
           dispatch(logout());
           navigate("/login");
           throw new Error("Session expired. Please login again.");
+        }
+        finally{
+          isStreaming.current = false;
         }
       }
 
@@ -618,17 +627,16 @@ export default function ChatPage() {
           const trimmedLine = line.trim();
 
           // Skip empty lines and ping messages
-          if (!trimmedLine || trimmedLine === ":") continue;
+          if (!trimmedLine || trimmedLine === ':ping') continue;
 
-          // Check for DONE marker
-          if (trimmedLine === "data: [DONE]") {
-            console.log("[STREAM] Received [DONE] marker");
+          if (trimmedLine === 'data: DONE' || trimmedLine === 'DONE') {
+            console.log('[STREAM] Skipping DONE marker');
             if (loadingTimer.current) {
               clearInterval(loadingTimer.current);
               loadingTimer.current = null;
-              setLoadingLabel("");
             }
-            break;
+            setLoadingLabel('');
+            continue;  // Skip to next line, don't process as data
           }
 
           // Parse SSE data
@@ -637,6 +645,49 @@ export default function ChatPage() {
 
             try {
               const data = JSON.parse(dataStr);
+
+              if (data.event === 'conversation_created') {
+                const newConv = data.conversation;
+                
+                // Find placeholder
+                const placeholder = reduxConversations.find(c => c.is_placeholder);
+                if (placeholder) {
+                  dispatch(
+                    replaceConversation({
+                      placeholderId: placeholder.id,
+                      newConversation: {
+                        id: newConv.id,
+                        title: newConv.title,
+                        description: newConv.description,
+                        createdAt: newConv.created_at,
+                        userId: newConv.user_id,
+                      },
+                    })
+                  );
+                } else {
+                  dispatch(
+                    addNewConversation({
+                      id: newConv.id,
+                      title: newConv.title,
+                      description: newConv.description,
+                      createdAt: newConv.created_at,
+                      userId: newConv.user_id,
+                    })
+                  );
+                }
+                
+                dispatch(selectConversation(newConv.id));
+                conversationId = newConv.id;
+                console.log(
+                  "[STREAM] Conversation created. Real ID:",
+                  newConv.id,
+                  "Title:",
+                  newConv.title
+                );
+
+                
+                continue; // Skip to next message without returning
+              }
 
               // On first token: add assistant message to Redux
               if (firstChunk) {
@@ -692,25 +743,36 @@ export default function ChatPage() {
       // Process any remaining buffer content
       if (buffer.trim()) {
         const trimmedLine = buffer.trim();
-        if (trimmedLine.startsWith("data: ")) {
+
+        // ✅ ADD THIS CHECK:
+        if (trimmedLine === "data: DONE" || trimmedLine === "DONE") {
+          console.log("[STREAM] Skipping DONE in final buffer");
+          // Don't process, just exit
+        } else if (trimmedLine.startsWith("data: ")) {
           const dataStr = trimmedLine.slice(6).trim();
-          try {
-            const data = JSON.parse(dataStr);
-            if (data.content) {
-              aiText += data.content;
-              dispatch(updateLastMessage(aiText));
+
+          // ✅ ADD THIS CHECK:
+          if (dataStr === "DONE") {
+            console.log("[STREAM] Skipping DONE in final buffer data");
+          } else {
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.content) {
+                aiText += data.content;
+                dispatch(updateLastMessage(aiText));
+              }
+              if (data.sources && Array.isArray(data.sources)) {
+                sources = data.sources;
+                dispatch(
+                  updateAssistantMessageSources({
+                    messageId: aiMessageId,
+                    sources,
+                  })
+                );
+              }
+            } catch (parseError) {
+              console.warn("[STREAM] Failed to parse final buffer", dataStr);
             }
-            if (data.sources && Array.isArray(data.sources)) {
-              sources = data.sources;
-              dispatch(
-                updateAssistantMessageSources({
-                  messageId: aiMessageId,
-                  sources,
-                })
-              );
-            }
-          } catch (parseError) {
-            console.warn("[STREAM] Failed to parse final buffer:", dataStr);
           }
         }
       }
@@ -718,25 +780,34 @@ export default function ChatPage() {
       console.log("[STREAM] Stream completed. Full response:", aiText);
 
       const elapsed = Math.round((Date.now() - streamStartTime.current) / 1000);
-      setGenerationTimes((prev) => ({
-        ...prev,
-        [conversationId]: elapsed,
-      }));
+      // ✅ NEW: Store time on the specific message, not on the conversation
+      if (aiMessageId) {
+        dispatch(
+          updateMessageGenerationTime({
+            messageId: aiMessageId,
+            generationTime: elapsed,
+          })
+        );
+      }
+
 
       // Persist streamed response to backend
-      try {
-        console.log("[STREAM] Persisting assistant message to backend...");
-        await api.post(`api/memory/conversations/${conversationId}/messages`, {
-          content: aiText,
-          role: "assistant",
-          sources: sources,
-        });
-        console.log("[STREAM] Assistant message saved to backend");
-
-        // Fetch updated messages to sync Redux with backend IDs
-        dispatch(fetchConversationMessages(conversationId));
-      } catch (persistError) {
-        console.error("[STREAM] Failed to persist response:", persistError);
+      if (conversationId && !conversationId.startsWith("new-")) {
+        try {
+          console.log("[STREAM] Persisting assistant message...");
+          await api.post(
+            `/api/memory/conversations/${conversationId}/messages`,
+            {
+              content: full_answer,
+              role: "assistant",
+              sources: sources,
+            }
+          );
+        } catch (e) {
+          console.error("[STREAM] Failed to persist:", e);
+        }
+      } else {
+        console.log("[STREAM] Skipping persistence for placeholder");
       }
     } catch (error) {
       console.error("[STREAM] Stream reading error:", error);
@@ -752,10 +823,32 @@ export default function ChatPage() {
   // ============ CREATE NEW CHAT ============
   const handleNewChat = useCallback(() => {
     console.log("[CHAT] Starting new chat");
-    dispatch(newChat()); // ← Add this
+
+    // Clear current chat
+    dispatch(newChat());
     setMessage("");
     setSearchQuery("");
-  }, [dispatch]);  
+
+    // ✅ REMOVE OLD PLACEHOLDER FIRST
+    dispatch(removeAllPlaceholders()); // ← ADD THIS
+
+    // Then add new placeholder
+    const placeholderId = `new-${Date.now()}`;
+    dispatch(
+      addNewConversation({
+        id: placeholderId,
+        title: "New Conversation",
+        description: "Waiting for query...",
+        created_at: new Date().toISOString(),
+        user_id: null,
+        is_placeholder: true,
+      })
+    );
+
+    console.log("[CHAT] Placeholder added to sidebar");
+  }, [dispatch]);
+  
+  
 
   // ============ SELECT CONVERSATION ============
   const handleSelectConversationAction = useCallback(
@@ -767,14 +860,24 @@ export default function ChatPage() {
   );  
 
   // ============ DELETE CONVERSATION ============
-  const handleDeleteConversation = useCallback(
-    (conversationId, e) => {
-      e?.stopPropagation?.();
-      console.log("[CHAT] Deleting conversation:", conversationId);
-      dispatch(deleteConversation(conversationId));
-    },
-    [dispatch]
-  );
+  const handleDeleteClick = useCallback((reduxCurrentConvId, e) => {
+    e?.stopPropagation?.();
+    setDeleteConfirmDialog(reduxCurrentConvId); // Show dialog
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (deleteConfirmDialog) {
+      await dispatch(deleteConversation(deleteConfirmDialog));
+      setDeleteConfirmDialog(null);
+    }
+  }, [deleteConfirmDialog, dispatch]);
+
+  const cancelDelete = useCallback(() => {
+    setDeleteConfirmDialog(null);
+  }, []);
+  
+  
+  
 
   return (
     <div className="bg-slate-950 h-screen flex overflow-hidden">
@@ -871,7 +974,7 @@ export default function ChatPage() {
                 <span className="truncate flex-1">{conv.title}</span>
                 {reduxConversations.length > 1 && (
                   <button
-                    onClick={(e) => handleDeleteConversation(conv.id, e)}
+                    onClick={(e) => handleDeleteClick(conv.id, e)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/10 rounded transition-all"
                   >
                     <Trash2 size={14} className="text-red-400" />
@@ -1056,11 +1159,9 @@ export default function ChatPage() {
                                 </svg>
                               </div>
                               <span>Analysis</span>
-                              {generationTimes[reduxCurrentConvId] !==
-                                undefined && (
+                              {msg.generationTime !== undefined && (
                                 <span className="ml-3 text-xs text-slate-400 font-normal">
-                                  (generated in{" "}
-                                  {generationTimes[reduxCurrentConvId]}s)
+                                  generated in {msg.generationTime}s
                                 </span>
                               )}
                             </div>
@@ -1405,6 +1506,49 @@ export default function ChatPage() {
           </div>
         </div>
       </main>
+      {deleteConfirmDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-slate-900 border border-slate-700/50 rounded-lg shadow-xl max-w-sm w-full mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-900/20 to-red-800/10 border-b border-slate-700/50 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <Trash2 size={20} className="text-red-400" />
+                <h3 className="text-lg font-semibold text-white">
+                  Delete Conversation
+                </h3>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-4">
+              <p className="text-slate-300 mb-2">
+                Are you sure you want to delete this conversation?
+              </p>
+              <p className="text-slate-500 text-sm">
+                This action cannot be undone. The conversation will be
+                permanently deleted.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-800/30 border-t border-slate-700/50 px-6 py-4 flex gap-3 justify-end">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+              >
+                <Trash2 size={16} />
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <PdfViewerModal />
     </div>
   );
